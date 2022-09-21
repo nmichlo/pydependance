@@ -1,0 +1,23 @@
+
+name: python-lint
+on: [push, pull_request]
+jobs:
+  isort:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-python@v2
+        with:
+          python-version: "3.8"
+      - uses: jamescurtin/isort-action@master
+        with:
+          configuration: "--check --verbose --diff --color --py=38 --profile=black"
+  black:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: psf/black@stable
+        with:
+          options: "--check --verbose --diff --color --target-version=py38"
+          version: "22.8.0"
+          src: "."

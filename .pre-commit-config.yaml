@@ -1,0 +1,20 @@
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.3.0
+    hooks:
+      - id: check-added-large-files
+        args: ["--maxkb=500"]
+
+  - repo: https://github.com/PyCQA/isort
+    rev: 5.10.1
+    hooks:
+      - id: isort
+        name: isort
+        args: ["--py=38", "--profile=black"]
+
+  - repo: https://github.com/psf/black
+    rev: 22.8.0
+    hooks:
+      - id: black
+        args: ["--target-version=py38"]
