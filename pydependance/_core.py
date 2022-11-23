@@ -2,7 +2,7 @@ import sys
 
 # check the python version
 if sys.version_info < (3, 10):
-    print('please use python >= 3.10')
+    print("please use python >= 3.10")
     exit(1)
 
 import ast
@@ -11,20 +11,19 @@ import warnings
 from pathlib import Path
 from typing import Callable, Dict, Iterable, List, Optional, Sequence, Set, Tuple, Union
 
-
 # ========================================================================= #
 # Load Builtin Packages                                                     #
 # ========================================================================= #
 
 
 BUILTIN_PKGS = {
-    '__main__',
+    "__main__",
     *sys.builtin_module_names,
     *sys.stdlib_module_names,  # python 3.10
 }
 
 
-def is_builtin(import_: 'ImportType') -> bool:
+def is_builtin(import_: "ImportType") -> bool:
     root = _import_to_keys(import_)[0]
     return root in BUILTIN_PKGS
 
@@ -40,7 +39,7 @@ def ast_get_module_imports(path: Union[str, Path]) -> List[Tuple[List[str], bool
     class AstImportCollector(ast.NodeVisitor):
         def visit_Import(self, node):
             # eg. import pkg.submodule
-            imports.extend((n.name.split('.'), False) for n in node.names)
+            imports.extend((n.name.split("."), False) for n in node.names)
             return node
 
         def visit_ImportFrom(self, node):
@@ -48,8 +47,8 @@ def ast_get_module_imports(path: Union[str, Path]) -> List[Tuple[List[str], bool
             # eg: from . import ?
             # eg: from .submodule import ?
             # eg: from pkg.submodule import ?
-            import_keys = node.module.split('.') if node.module else []
-            is_relative = (node.level != 0)
+            import_keys = node.module.split(".") if node.module else []
+            is_relative = node.level != 0
             imports.append((import_keys, is_relative))
             return node
 
@@ -64,17 +63,17 @@ def ast_get_module_imports(path: Union[str, Path]) -> List[Tuple[List[str], bool
 # ========================================================================= #
 
 
-INIT_PY = '__init__.py'
+INIT_PY = "__init__.py"
 
 
 ImportKey = Tuple[str, ...]
-ImportType = Union[str, ImportKey, 'Import', 'Module']
+ImportType = Union[str, ImportKey, "Import", "Module"]
 
 
 def _import_to_keys(import_: ImportType) -> ImportKey:
     # split the import if needed
     if isinstance(import_, str):
-        import_ = import_.split('.')
+        import_ = import_.split(".")
     elif isinstance(import_, Import):
         import_ = import_.target_keys
     elif isinstance(import_, Module):
@@ -93,14 +92,22 @@ def import_check_keys(import_keys: ImportKey, orig=None) -> ImportKey:
     if orig is None:
         orig = import_keys
     if not import_keys:
-        raise ValueError(f'import path must have at least one part for: {repr(import_keys)}')
+        raise ValueError(
+            f"import path must have at least one part for: {repr(import_keys)}"
+        )
     if not isinstance(import_keys, tuple):
-        raise TypeError(f'import keys must be a tuple, got: {type(import_keys)} for: {repr(orig)}')
+        raise TypeError(
+            f"import keys must be a tuple, got: {type(import_keys)} for: {repr(orig)}"
+        )
     for part in import_keys:
         if not isinstance(part, str):
-            raise TypeError(f'import part: {repr(part)} is not a string, got type: {type(part)}, obtained from: {repr(import_keys)}')
+            raise TypeError(
+                f"import part: {repr(part)} is not a string, got type: {type(part)}, obtained from: {repr(import_keys)}"
+            )
         if not part.isidentifier():
-            raise ValueError(f'import part: {repr(part)} is not a valid identifier, obtained from: {repr(import_keys)}')
+            raise ValueError(
+                f"import part: {repr(part)} is not a valid identifier, obtained from: {repr(import_keys)}"
+            )
     return import_keys
 
 
@@ -121,11 +128,15 @@ def normalize_imports_pipe(
 
 
 def is_python_module(path: Path) -> bool:
-    return path.is_file() and path.name.endswith('.py') and path.name[:-3].isidentifier()
+    return (
+        path.is_file() and path.name.endswith(".py") and path.name[:-3].isidentifier()
+    )
 
 
 def is_python_package(path: Path) -> bool:
-    return path.is_dir() and path.name.isidentifier() and path.joinpath(INIT_PY).is_file()
+    return (
+        path.is_dir() and path.name.isidentifier() and path.joinpath(INIT_PY).is_file()
+    )
 
 
 def is_child_import(parent, child) -> bool:
@@ -133,7 +144,7 @@ def is_child_import(parent, child) -> bool:
     child = import_to_keys(child)
     if len(child) < len(parent):
         return False
-    return parent == child[:len(parent)]
+    return parent == child[: len(parent)]
 
 
 def find_modules(
@@ -159,12 +170,14 @@ def find_modules(
             # continue recursively, making sure to skip __init__.py files
             for p in path.iterdir():
                 if p.name != INIT_PY:
-                    yield from _recurse(p, parent_keys=keys, depth=depth+1)
+                    yield from _recurse(p, parent_keys=keys, depth=depth + 1)
 
     root = Path(root)
     # make sure that if we skip root __init__.py files
     if root.name == INIT_PY:
-        warnings.warn(f'root cannot be an {INIT_PY} file, returning no modules for: {root.resolve()}')
+        warnings.warn(
+            f"root cannot be an {INIT_PY} file, returning no modules for: {root.resolve()}"
+        )
         return
     # find values!
     yield from (
@@ -174,7 +187,7 @@ def find_modules(
 
 
 def _yield_imports(
-    node: Union['Module', 'ModuleNamespace'],
+    node: Union["Module", "ModuleNamespace"],
     roots: bool = False,
     builtin: bool = True,
 ):
@@ -196,29 +209,28 @@ def _yield_imports(
 
 
 class Import:
-
     @classmethod
     def from_module_perspective(
         cls,
-        module: 'Module',
+        module: "Module",
         keys: Union[str, Sequence[str]],
         is_relative: bool,
     ):
         orig = keys
         if isinstance(keys, str):
-            keys = keys.split('.')
+            keys = keys.split(".")
         keys = tuple(keys)
         if is_relative:
             keys = module.import_keys[:-1] + keys
         import_check_keys(keys, orig=orig)
         return Import(keys, source_module=module)
 
-    def __init__(self, target: Union[str, Sequence[str]], source_module: 'Module'):
+    def __init__(self, target: Union[str, Sequence[str]], source_module: "Module"):
         self._target_keys = import_to_keys(target)
         self._source_module = source_module
 
     def __repr__(self):
-        return f'{self.__class__.__name__}<{self.target_path}>'
+        return f"{self.__class__.__name__}<{self.target_path}>"
 
     @property
     def target_keys(self) -> ImportKey:
@@ -237,7 +249,7 @@ class Import:
         return len(self.target_keys)
 
     @property
-    def source_module(self) -> 'Module':
+    def source_module(self) -> "Module":
         return self._source_module
 
     def __eq__(self, other):
@@ -253,17 +265,16 @@ class Import:
 
 
 class Module:
-
     def __init__(self, path: Union[str, Path], import_: Union[str, Sequence[str]]):
         # check the path
         path = Path(path)
         if is_python_module(path):
-            self._is_package = (path.name == INIT_PY)
+            self._is_package = path.name == INIT_PY
         elif is_python_package(path):
             self._is_package = True
             path = path.joinpath(INIT_PY)
         else:
-            raise ValueError(f'not a valid python module or package: {path}')
+            raise ValueError(f"not a valid python module or package: {path}")
         # initialize
         self._abs_path: Path = path.absolute()
         self._import_keys = import_to_keys(import_)
@@ -274,7 +285,7 @@ class Module:
         ]
 
     def __repr__(self):
-        return f'{self.__class__.__name__}<{self.import_path}>'
+        return f"{self.__class__.__name__}<{self.import_path}>"
 
     @property
     def is_package(self) -> bool:
@@ -308,9 +319,13 @@ class Module:
         if builtin:
             yield from self._imports
         else:
-            yield from (imp for imp in self._imports if imp.target_root not in BUILTIN_PKGS)
+            yield from (
+                imp for imp in self._imports if imp.target_root not in BUILTIN_PKGS
+            )
 
-    def imports_unique(self, roots: bool = False, builtin: bool = True) -> Iterable[str]:
+    def imports_unique(
+        self, roots: bool = False, builtin: bool = True
+    ) -> Iterable[str]:
         yield from _yield_imports(self, roots=roots, builtin=builtin)
 
 
@@ -325,7 +340,7 @@ class ModuleNamespace:
         # sure to limit its size when used
         self._cache = None
 
-    def copy(self) -> 'ModuleNamespace':
+    def copy(self) -> "ModuleNamespace":
         namespace = ModuleNamespace()
         namespace._modules = dict(self._modules)
         return namespace
@@ -337,24 +352,26 @@ class ModuleNamespace:
     # Add Modules   #
     # ~=~=~=~=~=~=~ #
 
-    def add_modules(self, modules: Sequence[Module]) -> 'ModuleNamespace':
+    def add_modules(self, modules: Sequence[Module]) -> "ModuleNamespace":
         for module in modules:
             if module.import_keys in self._modules:
-                raise RuntimeError(f'module {repr(module.import_path)} has already been added to namespace')
+                raise RuntimeError(
+                    f"module {repr(module.import_path)} has already been added to namespace"
+                )
         for module in modules:
             self._modules[module.import_keys] = module
         return self
 
-    def add_modules_from_packages(self, roots: Sequence[Union[str, Path]]) -> 'ModuleNamespace':
-        modules = [
-            m
-            for root in roots
-            for m in find_modules(root)
-        ]
+    def add_modules_from_packages(
+        self, roots: Sequence[Union[str, Path]]
+    ) -> "ModuleNamespace":
+        modules = [m for root in roots for m in find_modules(root)]
         self.add_modules(modules)
         return self
 
-    def add_modules_from_python_paths(self, python_paths: Sequence[Union[str, Path]] = None) -> 'ModuleNamespace':
+    def add_modules_from_python_paths(
+        self, python_paths: Sequence[Union[str, Path]] = None
+    ) -> "ModuleNamespace":
         if python_paths is None:
             python_paths = sys.path
         paths = [
@@ -375,27 +392,37 @@ class ModuleNamespace:
         *,
         keep: Callable[[Module], bool] = None,
         remove: Callable[[Module], bool] = None,
-    ) -> 'ModuleNamespace':
+    ) -> "ModuleNamespace":
         result = self.copy()
         if keep:
             result._modules = {k: m for k, m in result._modules.items() if keep(m)}
         if remove:
-            result._modules = {k: m for k, m in result._modules.items() if not remove(m)}
+            result._modules = {
+                k: m for k, m in result._modules.items() if not remove(m)
+            }
         return result
 
-    def restrict(self, imports, mode: str = 'children'):
+    def restrict(self, imports, mode: str = "children"):
         if isinstance(imports, (str, tuple, Import, Module)):
             imports = [imports]
         imports = set(import_to_keys(imp) for imp in imports)
         # restrict based on the mode
-        if mode == 'exact':
+        if mode == "exact":
             return self.filtered(keep=lambda m: m.import_keys in imports)
-        elif mode == 'children':
-            return self.filtered(keep=lambda m: any(is_child_import(parent=keys, child=m) for keys in imports))
-        elif mode == 'root_children':
-            return self.filtered(keep=lambda m: any(is_child_import(parent=keys[0], child=m) for keys in imports))
+        elif mode == "children":
+            return self.filtered(
+                keep=lambda m: any(
+                    is_child_import(parent=keys, child=m) for keys in imports
+                )
+            )
+        elif mode == "root_children":
+            return self.filtered(
+                keep=lambda m: any(
+                    is_child_import(parent=keys[0], child=m) for keys in imports
+                )
+            )
         else:
-            raise KeyError(f'invalid restrict mode: {repr(mode)}')
+            raise KeyError(f"invalid restrict mode: {repr(mode)}")
 
     # ~=~=~=~=~=~=~ #
     # Getters       #
@@ -424,15 +451,17 @@ class ModuleNamespace:
         for module in self._modules.values():
             yield from module.imports(builtin=builtin)
 
-    def imports_unique(self, roots: bool = False, builtin: bool = True) -> Iterable[str]:
+    def imports_unique(
+        self, roots: bool = False, builtin: bool = True
+    ) -> Iterable[str]:
         yield from _yield_imports(self, roots=roots, builtin=builtin)
 
     def imports_resolved(
         self,
-        against: 'ModuleNamespace' = None,
+        against: "ModuleNamespace" = None,
         roots: bool = False,
         builtin: bool = True,
-        mode: str = 'exact',
+        mode: str = "exact",
     ) -> Set[str]:
         if against is None:
             against = self
@@ -454,7 +483,7 @@ class ModuleNamespace:
         imports: Iterable[ImportType],
         roots: bool = False,
         builtin: bool = True,
-        mode: str = 'exact',
+        mode: str = "exact",
     ) -> Set[str]:
         """
         This function only resolved the specified imports based on the current
@@ -473,12 +502,14 @@ class ModuleNamespace:
             mode=mode,
             _restrict_cache_=None,
         )
-        resolved = set(normalize_imports_pipe(
-            resolved,
-            roots=roots,
-            builtin=builtin,
-            keys=False,
-        ))
+        resolved = set(
+            normalize_imports_pipe(
+                resolved,
+                roots=roots,
+                builtin=builtin,
+                keys=False,
+            )
+        )
         return resolved
 
     def _resolve_imports(
@@ -519,10 +550,10 @@ class ModuleNamespace:
 
     def resolve(
         self,
-        namespace: 'ModuleNamespace' = None,
+        namespace: "ModuleNamespace" = None,
         roots: bool = False,
         builtin: bool = True,
-        mode: str = 'exact',
+        mode: str = "exact",
     ) -> Dict[str, Set[str]]:
         # multiple packages in the same project may depend on each other
         # - this function finds those imports and replaces them with
@@ -552,12 +583,14 @@ class ModuleNamespace:
 
         # normalize the final results
         module_imports = {
-            ".".join(k): set(normalize_imports_pipe(
-                resolved,
-                roots=roots,
-                builtin=builtin,
-                keys=False,
-            ))
+            ".".join(k): set(
+                normalize_imports_pipe(
+                    resolved,
+                    roots=roots,
+                    builtin=builtin,
+                    keys=False,
+                )
+            )
             for k, resolved in module_imports.items()
         }
 
