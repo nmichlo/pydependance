@@ -1,4 +1,5 @@
 import sys
+from collections import defaultdict
 
 # check the python version
 if sys.version_info < (3, 10):
@@ -23,8 +24,13 @@ BUILTIN_PKGS = {
 }
 
 
-def is_builtin(import_: "ImportType") -> bool:
-    root = _import_to_keys(import_)[0]
+def import_get_root(import_: "ImportType") -> str:
+    root = import_to_keys(import_, check=False)[0]
+    return root
+
+
+def import_is_builtin(import_: "ImportType") -> bool:
+    root = import_get_root(import_)
     return root in BUILTIN_PKGS
 
 
@@ -35,11 +41,34 @@ def is_builtin(import_: "ImportType") -> bool:
 
 def ast_get_module_imports(path: Union[str, Path]) -> List[Tuple[List[str], bool]]:
     imports = []
+    ast_node_stack = []
+    is_eval_stack = [True]
+    INDIRECT = {"FunctionDef"}
 
     class AstImportCollector(ast.NodeVisitor):
+
+        # TODO: we should implement a basic interpreter to detect if imports are
+        #       immediate or indirect, for example imports at the root of a module or
+        #       inside a class would evaluate immediately, but imports inside a function
+        #       will probably be lazily imported, and can be marked as such.
+
+        def visit(self, node):
+            # basic interpreter
+            is_eval = is_eval_stack[-1] and (node.__class__.__name__ not in INDIRECT)
+            ast_node_stack.append(node)
+            is_eval_stack.append(is_eval)
+            # continue recursion
+            super().visit(node)
+            # undo
+            ast_node_stack.pop()
+            is_eval_stack.pop()
+
         def visit_Import(self, node):
             # eg. import pkg.submodule
-            imports.extend((n.name.split("."), False) for n in node.names)
+            imports.extend(
+                (n.name.split("."), False, is_eval_stack[-1], tuple(ast_node_stack))
+                for n in node.names
+            )
             return node
 
         def visit_ImportFrom(self, node):
@@ -49,7 +78,9 @@ def ast_get_module_imports(path: Union[str, Path]) -> List[Tuple[List[str], bool
             # eg: from pkg.submodule import ?
             import_keys = node.module.split(".") if node.module else []
             is_relative = node.level != 0
-            imports.append((import_keys, is_relative))
+            imports.append(
+                (import_keys, is_relative, is_eval_stack[-1], tuple(ast_node_stack))
+            )
             return node
 
     # collect import from file
@@ -81,10 +112,11 @@ def _import_to_keys(import_: ImportType) -> ImportKey:
     return tuple(import_)
 
 
-def import_to_keys(import_: ImportType) -> ImportKey:
+def import_to_keys(import_: ImportType, check: bool = True) -> ImportKey:
     import_keys, orig = _import_to_keys(import_), import_
     # check, all parts must be identifiers, and there must be at least one part
-    import_check_keys(import_keys, orig=orig)
+    if check:
+        import_check_keys(import_keys, orig=orig)
     return import_keys
 
 
@@ -186,21 +218,52 @@ def find_modules(
     )
 
 
-def _yield_imports(
+def _yield_import_and_keys(
     node: Union["Module", "ModuleNamespace"],
     roots: bool = False,
     builtin: bool = True,
-):
-    visited = set()
+) -> Iterable[Tuple[str, "Import"]]:
     for import_ in node.imports(builtin=builtin):
         if roots:
             key = import_.target_root
         else:
             key = import_.target_path
+        yield key, import_
+
+
+def _yield_imports(
+    node: Union["Module", "ModuleNamespace"],
+    roots: bool = False,
+    builtin: bool = True,
+) -> Iterable[str]:
+    visited = set()
+    for key, import_ in _yield_import_and_keys(node, roots=roots, builtin=builtin):
         # return the result if it has not been seen
         if key not in visited:
             visited.add(key)
             yield key
+
+
+def _group_imports(
+    node: Union["Module", "ModuleNamespace"],
+    roots: bool = False,
+    builtin: bool = True,
+) -> Dict[str, List["Import"]]:
+    groups = defaultdict(list)
+    for key, import_ in _yield_import_and_keys(node, roots=roots, builtin=builtin):
+        groups[key].append(import_)
+    return dict(groups)
+
+
+def _group_imports_from_modules(
+    node: Union["Module", "ModuleNamespace"],
+    roots: bool = False,
+    builtin: bool = True,
+) -> Dict[str, Set["Module"]]:
+    groups = defaultdict(set)
+    for key, import_ in _yield_import_and_keys(node, roots=roots, builtin=builtin):
+        groups[key].add(import_.source_module)
+    return groups
 
 
 # ========================================================================= #
@@ -215,6 +278,8 @@ class Import:
         module: "Module",
         keys: Union[str, Sequence[str]],
         is_relative: bool,
+        is_immediate_eval: bool,
+        ast_parents: Tuple[ast.AST],
     ):
         orig = keys
         if isinstance(keys, str):
@@ -223,14 +288,35 @@ class Import:
         if is_relative:
             keys = module.import_keys[:-1] + keys
         import_check_keys(keys, orig=orig)
-        return Import(keys, source_module=module)
+        return Import(
+            keys,
+            source_module=module,
+            is_immediate_eval=is_immediate_eval,
+            ast_parents=ast_parents,
+        )
 
-    def __init__(self, target: Union[str, Sequence[str]], source_module: "Module"):
+    def __init__(
+        self,
+        target: Union[str, Sequence[str]],
+        source_module: "Module",
+        is_immediate_eval: Optional[bool] = None,
+        ast_parents: Optional[Tuple[ast.AST]] = None,
+    ):
         self._target_keys = import_to_keys(target)
         self._source_module = source_module
+        self._is_immediate_eval = is_immediate_eval
+        self._ast_parents = ast_parents
 
     def __repr__(self):
         return f"{self.__class__.__name__}<{self.target_path}>"
+
+    @property
+    def is_immediate_eval(self) -> Optional[bool]:
+        return self._is_immediate_eval
+
+    @property
+    def ast_parents(self) -> Optional[Tuple[ast.AST, ...]]:
+        return self._ast_parents
 
     @property
     def target_keys(self) -> ImportKey:
@@ -254,18 +340,23 @@ class Import:
 
     def __eq__(self, other):
         if isinstance(other, (Module, Import, str, tuple)):
-            return self.target_keys == import_to_keys(other)
+            return self.target_keys == import_to_keys(other, check=False)
         return False
 
     def __lt__(self, other):
         return self.target_keys < other.target_keys
 
     def __hash__(self):
-        return hash(self.target_path)
+        return hash("<import>" + self.target_path)
 
 
 class Module:
-    def __init__(self, path: Union[str, Path], import_: Union[str, Sequence[str]]):
+    def __init__(
+        self,
+        path: Union[str, Path],
+        import_: Union[str, Sequence[str]],
+        _load_: bool = True,
+    ):
         # check the path
         path = Path(path)
         if is_python_module(path):
@@ -279,13 +370,35 @@ class Module:
         self._abs_path: Path = path.absolute()
         self._import_keys = import_to_keys(import_)
         # load imports
-        self._imports = [
-            Import.from_module_perspective(self, keys=keys, is_relative=is_relative)
-            for keys, is_relative in ast_get_module_imports(self.path)
-        ]
+        if _load_:
+            self._imports = [
+                Import.from_module_perspective(
+                    self,
+                    keys=keys,
+                    is_relative=is_relative,
+                    is_immediate_eval=is_immediate_eval,
+                    ast_parents=ast_parents,
+                )
+                for keys, is_relative, is_immediate_eval, ast_parents in ast_get_module_imports(
+                    self.path
+                )
+            ]
+        else:
+            self._imports = []
 
     def __repr__(self):
         return f"{self.__class__.__name__}<{self.import_path}>"
+
+    def __eq__(self, other):
+        if isinstance(other, (Module, Import, str, tuple)):
+            return self.import_keys == import_to_keys(other, check=False)
+        return False
+
+    def __lt__(self, other):
+        return self.import_keys < other.import_keys
+
+    def __hash__(self):
+        return hash("<module>" + self.import_path)
 
     @property
     def is_package(self) -> bool:
@@ -328,6 +441,16 @@ class Module:
     ) -> Iterable[str]:
         yield from _yield_imports(self, roots=roots, builtin=builtin)
 
+    def imports_grouped(
+        self, roots: bool = False, builtin: bool = True
+    ) -> Dict[str, List[Import]]:
+        return _group_imports(self, roots=roots, builtin=builtin)
+
+    def imports_ref_modules(
+        self, roots: bool = False, builtin: bool = True
+    ) -> Dict[str, Set["Module"]]:
+        return _group_imports_from_modules(self, roots=roots, builtin=builtin)
+
 
 class ModuleNamespace:
 
@@ -346,7 +469,21 @@ class ModuleNamespace:
         return namespace
 
     def __repr__(self):
-        return f'{self.__class__.__name__}<{" ,".join(".".join(k) for k in self._modules.keys() if len(k) == 1)}>'
+        return f'{self.__class__.__name__}<{", ".join(".".join(k) for k in self._modules.keys() if len(k) == 1)}>'
+
+    # ~=~=~=~=~=~=~ #
+    # Add Imports   #
+    # ~=~=~=~=~=~=~ #
+
+    def _add_import_unchecked(self, import_: Import):
+        module_keys = import_.source_module.import_keys
+        module = self._modules.get(module_keys, None)
+        # create the module if missing
+        if module is None:
+            module = Module(import_.source_module.path, module_keys, _load_=False)
+            self._modules[module_keys] = module
+        # add the import to the module
+        module._imports.append(import_)
 
     # ~=~=~=~=~=~=~ #
     # Add Modules   #
@@ -363,14 +500,14 @@ class ModuleNamespace:
         return self
 
     def add_modules_from_packages(
-        self, roots: Sequence[Union[str, Path]]
+        self, roots: Iterable[Union[str, Path]]
     ) -> "ModuleNamespace":
         modules = [m for root in roots for m in find_modules(root)]
         self.add_modules(modules)
         return self
 
     def add_modules_from_python_paths(
-        self, python_paths: Sequence[Union[str, Path]] = None
+        self, python_paths: Optional[Iterable[Union[str, Path]]]
     ) -> "ModuleNamespace":
         if python_paths is None:
             python_paths = sys.path
@@ -402,7 +539,7 @@ class ModuleNamespace:
             }
         return result
 
-    def restrict(self, imports, mode: str = "children"):
+    def restrict(self, imports, mode: str = "exact"):
         if isinstance(imports, (str, tuple, Import, Module)):
             imports = [imports]
         imports = set(import_to_keys(imp) for imp in imports)
@@ -421,6 +558,16 @@ class ModuleNamespace:
                     is_child_import(parent=keys[0], child=m) for keys in imports
                 )
             )
+        else:
+            raise KeyError(f"invalid restrict mode: {repr(mode)}")
+
+    def restrict_depth(self, depth: int, mode: str = "exact"):
+        if depth < 0:
+            return self
+        if mode == "exact":
+            return self.filtered(keep=lambda m: len(m.import_keys) == depth)
+        elif mode == "children":
+            return self.filtered(keep=lambda m: len(m.import_keys) >= depth)
         else:
             raise KeyError(f"invalid restrict mode: {repr(mode)}")
 
@@ -455,6 +602,16 @@ class ModuleNamespace:
         self, roots: bool = False, builtin: bool = True
     ) -> Iterable[str]:
         yield from _yield_imports(self, roots=roots, builtin=builtin)
+
+    def imports_grouped(
+        self, roots: bool = False, builtin: bool = True
+    ) -> Dict[str, List[Import]]:
+        return _group_imports(self, roots=roots, builtin=builtin)
+
+    def imports_ref_modules(
+        self, roots: bool = False, builtin: bool = True
+    ) -> Dict[str, Set[Module]]:
+        return _group_imports_from_modules(self, roots=roots, builtin=builtin)
 
     def imports_resolved(
         self,
@@ -605,5 +762,7 @@ __all__ = (
     "Import",
     "Module",
     "ModuleNamespace",
-    "is_builtin",
+    "import_get_root",
+    "import_is_builtin",
+    "import_to_keys",
 )
