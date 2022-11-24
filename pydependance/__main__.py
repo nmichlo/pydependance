@@ -48,7 +48,7 @@ class CfgOutput_CmdRequirements(CfgBase):
     namespace: str
     required: Optional[List[str]] = None
     optional: Optional[List[str]] = None
-    path: Optional[str] = None
+    paths: Optional[List[str]] = None
     allow_files_as_modules: bool = True
 
 
@@ -415,24 +415,26 @@ def _command_requirements(
     required, optional = _command_requirements_collect(output, namespace)
 
     # add root to path if needed
-    path = os.path.join(config.root, output.path)
-    if path.endswith(".toml"):
-        writer = ReqWriterToml(path)
-    elif path.endswith(".txt") or path.endswith(".in"):
-        writer = ReqWriterTxt(path)
-    else:
-        raise RuntimeError(
-            f"unsupported requirements file type, for file: {Path(output.path).name}"
-        )
 
-    # print seperator
-    print(f'\n# {"="*77} #\n# {path}\n# {"="*77} #\n')
+    for path in output.paths:
+        path = os.path.join(config.root, path)
+        if path.endswith(".toml"):
+            writer = ReqWriterToml(path)
+        elif path.endswith(".txt") or path.endswith(".in"):
+            writer = ReqWriterTxt(path)
+        else:
+            raise RuntimeError(
+                f"unsupported requirements file type, for file: {Path(path).name}"
+            )
 
-    # load, write, save
-    writer.load()
-    _command_requirements_write(writer, config, required, optional)
-    writer.print()
-    writer.save()
+        # print seperator
+        print(f'\n# {"="*77} #\n# {path}\n# {"="*77} #\n')
+
+        # load, write, save
+        writer.load()    
+        _command_requirements_write(writer, config, required, optional)
+        writer.print()
+        writer.save()
 
 
 _COMMANDS = {"requirements": _command_requirements}
