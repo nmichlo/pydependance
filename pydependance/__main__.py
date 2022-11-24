@@ -48,7 +48,7 @@ class CfgOutput_CmdRequirements(CfgBase):
     namespace: str
     required: Optional[List[str]] = None
     optional: Optional[List[str]] = None
-    paths: Optional[List[str]] = None
+    path: Optional[Union[str, List[str]]] = None
     allow_files_as_modules: bool = True
 
 
@@ -412,11 +412,18 @@ def _command_requirements_write(
 def _command_requirements(
     config: Config, output: CfgOutput_CmdRequirements, namespace: ModuleNamespace
 ):
+    # normalize
+    paths = output.path
+    if paths is None:
+        return
+    elif isinstance(paths, str):
+        paths = [paths]
+
+    # collect requirements
     required, optional = _command_requirements_collect(output, namespace)
 
-    # add root to path if needed
-
-    for path in output.paths:
+    for path in paths:
+        # add root to path if needed
         path = os.path.join(config.root, path)
         if path.endswith(".toml"):
             writer = ReqWriterToml(path)
