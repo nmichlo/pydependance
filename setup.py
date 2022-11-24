@@ -22,7 +22,7 @@ setuptools.setup(
     name="pydependance",
     author="Nathan Juraj Michlo",
     author_email="NathanJMichlo@gmail.com",
-    version="0.1.0.dev3",
+    version="0.1.0.dev4",
     python_requires=">=3.10",
     packages=setuptools.find_packages(),
     install_requires=install_requires,
