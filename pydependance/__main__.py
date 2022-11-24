@@ -49,6 +49,7 @@ class CfgOutput_CmdRequirements(CfgBase):
     required: Optional[List[str]] = None
     optional: Optional[List[str]] = None
     path: Optional[str] = None
+    allow_files_as_modules: bool = True
 
 
 class CfgOutput_CmdImportsAll(CfgBase):
@@ -349,7 +350,7 @@ def _command_requirements_collect(
         required = set(
             module.import_path
             for module in namespace.modules_roots()
-            if module.is_package
+            if (module.is_package or output.allow_files_as_modules)
         )
 
     # 2. all remaining imports are optional by default
@@ -358,7 +359,7 @@ def _command_requirements_collect(
         optional = set(
             module.import_path
             for module in namespace.modules_roots()
-            if module.is_package and (module.import_path not in required)
+            if (module.is_package or output.allow_files_as_modules) and (module.import_path not in required)
         )
 
     # 3. collect all the children imports in the modules

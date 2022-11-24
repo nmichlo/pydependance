@@ -137,7 +137,7 @@ def import_check_keys(import_keys: ImportKey, orig=None) -> ImportKey:
                 f"import part: {repr(part)} is not a string, got type: {type(part)}, obtained from: {repr(import_keys)}"
             )
         if not part.isidentifier():
-            raise ValueError(
+            warnings.warn(
                 f"import part: {repr(part)} is not a valid identifier, obtained from: {repr(import_keys)}"
             )
     return import_keys
@@ -159,16 +159,18 @@ def normalize_imports_pipe(
     return imports
 
 
-def is_python_module(path: Path) -> bool:
-    return (
-        path.is_file() and path.name.endswith(".py") and path.name[:-3].isidentifier()
-    )
+def is_python_module(path: Path, validate_name: bool = False) -> bool:
+    is_module = path.is_file() and path.name.endswith(".py")
+    if validate_name:
+        is_module = is_module and path.name[:-3].isidentifier()
+    return is_module
 
 
-def is_python_package(path: Path) -> bool:
-    return (
-        path.is_dir() and path.name.isidentifier() and path.joinpath(INIT_PY).is_file()
-    )
+def is_python_package(path: Path, validate_name: bool = False) -> bool:
+    is_package = path.is_dir() and path.joinpath(INIT_PY).is_file()
+    if validate_name:
+        is_package = is_package and path.name.isidentifier()
+    return is_package
 
 
 def is_child_import(parent, child) -> bool:
