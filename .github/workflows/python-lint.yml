@@ -1,23 +1,29 @@
+name: pre-commit
+on: [pull_request]
 
-name: python-lint
-on: [push, pull_request]
 jobs:
-  isort:
+  pre-commit:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-python@v2
-        with:
-          python-version: "3.8"
-      - uses: jamescurtin/isort-action@master
-        with:
-          configuration: "--check --verbose --diff --color --py=38 --profile=black"
-  black:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - uses: psf/black@stable
-        with:
-          options: "--check --verbose --diff --color --target-version=py38"
-          version: "22.8.0"
-          src: "."
+
+    - uses: actions/checkout@v3
+
+    - uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+        cache: 'pip'
+
+    - id: cache-pre-commit-envs
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pre-commit
+        key: ${{ runner.os }}-pre-commit-${{ hashFiles('.pre-commit-config.yaml') }}
+
+    - id: install-requirements
+      run: pip install -e .[dev]
+
+    - name: pre-commit
+      id: pre-commit
+      run: |
+        set -o pipefail
+        pre-commit run --all-files

@@ -1,0 +1,270 @@
+# =========================================== #
+# BUILD SYSTEM                                #
+# =========================================== #
+
+[build-system]
+requires = ["setuptools>=61", "setuptools_scm[toml]>=6.2"]
+build-backend = "setuptools.build_meta"
+
+# =========================================== #
+# TOOLS                                       #
+# =========================================== #
+
+# packing tools
+[tool.setuptools]
+packages = ["pydependence"]
+
+# obtain the version from git
+# https://github.com/pypa/setuptools_scm
+#[tool.setuptools_scm]
+#fallback_version = "0.0.0"
+
+# automated tests
+[tool.pytest]
+minversion = "6.0"
+testpaths = ["tests", "pydependence"]
+python_files = ["test.py", "test_*.py", "__test__*.py"]
+
+# - - - - - - - - - - - - - - - - - - - - - - #
+# BOOTSTRAPPED PYDEPENDANCE SETTINGS          #
+# - - - - - - - - - - - - - - - - - - - - - - #
+
+# PYDEPENDENCE:
+# =============
+
+# pydependence is an AST imports analysis tool that is used to discover the imports of a package and generate
+# a dependency graph and requirements/pyproject sections.
+
+# pydependence is NOT a package manager or a dependency resolver.
+# This is left to the tool of your choice, e.g. pip, poetry, pip-compile, etc.
+
+
+# VERSION MAPPINGS:
+# =================
+
+# Versions are used to specify the version of a package that should be used when generating output requirements.
+# - If a version is not specified, an error will be raised.
+
+# Versions are also used to construct mappings between package names and import names.
+# - e.g. Pillow is imported as PIL, so the version mapping is {package="pillow", version="*", import="PIL"}
+
+# Resolving optional dependencies?
+
+# SCOPE:
+# ======
+
+# A scope is a logical collection of packages.
+# It is a way to group packages together for the purpose of dependency resolution.
+# - NOTE: there cannot be conflicting module imports within a scope.
+
+# Scopes can inherit from other scopes.
+# Scopes can have filters applied to them, include & exclude.
+# Scopes must have unique names.
+
+# The order of constructing a single scope is important.
+#    1. parents, search_paths, pkg_paths > [packages:NotImplemented]
+#       - parents: inherit all modules from the specified scopes
+#       - search_paths: search for packages inside the specified paths (like PYTHONPATH)
+#       - pkg_paths: add the packages at the specified paths
+#    2. limit, include, exclude
+#       - limit: limit the search space to children of the specified packages
+#       - include: include packages that match the specified patterns
+#       - exclude: exclude packages that match the specified patterns
+
+# The order of evaluation when constucting multiple scopes is important, and can
+# be used to create complex dependency resolution strategies.
+#    - all scopes are constructed in order of definition
+
+# SUBSCOPES:
+# ==========
+
+# A subscope is simply an alias for constructing a new scope, where:
+# - the parent scope is the current scope
+# - a filter is applied to limit the packages
+
+# e.g.
+# ```
+# [[tool.pydependence.scopes]]
+# name = "my_pkg"
+# pkg_paths = ["my_pkg"]
+# subscopes = {mySubPkg="my_pkg.my_sub_pkg"}
+# ```
+# is the same as:
+# ```
+# [[tool.pydependence.scopes]]
+# name = "my_pkg"
+# pkg_paths = ["my_pkg"]
+#
+# [[tool.pydependence.scopes]]
+# name = "mySubPkg"
+# parents = ["my_pkg"]
+# limit = ["my_pkg.my_sub_pkg"]
+# ```
+
+# why?
+# - This simplifies syntax for the common pattern of when you want to resolve optional dependencies
+#   across an entire package, but only want to traverse starting from the subscope.
+
+# RESOLVERS:
+# ==========
+
+# Resolvers are used to specify how to resolve dependencies, and where to output the results.
+
+# options:
+# * scope:
+#   - is used to determine the search space for the resolver.
+# * start_scope:
+#   - is used to determine the starting point for the resolver, i.e. BFS across all imports occurs from this point.
+# * output_mode:
+#   - is used to determine where to output the results.
+#   - valid options are: `dependencies`, `optional-dependencies` TODO: add more like `requirements`
+# * output_file:
+#   - is used to specify the file to output the results to, by default this is the current `pyproject.toml` file.
+#     this usually only needs to be specified when outputting to a different file like `requirements.txt`
+# * mode:
+#   - is used to determine the mode of the resolver and if it should traverse all imports or only lazy/eager imports.
+#   - valid options are: `all`, `lazy_only`, `eager_only`
+# * include:
+#  - TODO
+# * exclude:
+#  - TODO
+
+# Note: We can have multiple resolvers to construct different sets of outputs. For example if you have a library
+#       with core dependencies and optional dependencies, you can construct a resolver for each. And limit the results
+#       for the optional dependencies to only output the optional dependencies for that resolver.
+
+# general settings / overrides
+[tool.pydependence]
+
+# default, don't need to specify
+# - relative to the parent of this file
+default_root = ".."
+
+# default, don't need to specify
+default_write_rules = {builtin = "exclude", start_scope = "exclude", lazy = "comment"}
+
+# default, don't need to specify
+strict_requirements_map = true
+
+# global allowed package versions & version to import map
+versions = [
+    "networkx",
+    "pydantic>=2.0.0",
+    {requirement="pydantic<2.0.0,>=1.0.0", env='legacy'},
+    "stdlib_list",
+    "tomlkit",
+    "packaging",
+    {requirement="pydependence", scope="pydependence"},
+]
+
+resolvers = [
+    # output_name is optional, by default it is the same as the scope name, or sub scope
+    {output_mode='dependencies', scope='pydependence', start_scope='pydependence-core'},
+    {output_mode='optional-dependencies', scope='pydependence', output_name='example_core_no_lazy'},
+    {output_mode='optional-dependencies', scope='pydependence', env='legacy', output_name='example_legacy', write_rules = {start_scope = "exclude", lazy = "include"}},
+]
+
+# collections of packages and dependencies that will then be resolved.
+[[tool.pydependence.scopes]]
+name = "pydependence"
+pkg_paths = "pydependence/pydependence"
+
+[[tool.pydependence.scopes]]
+name = "pydependence-core"
+parents = ["pydependence"]
+limit = "pydependence._core"
+
+
+# =========================================== #
+# PROJECT                                     #
+# =========================================== #
+
+[project]
+name = "pydependence"
+dynamic = ["version"]
+description = "Python local package dependency discovery, resolution and requirements generation."
+urls = {repository = "https://github.com/nmichlo/pydependence"}
+authors = [{name = "Nathan Michlo", email = "nathanjmichlo@gmail.com"}]
+readme = "README.md"
+license = {file="LICENSE"}
+classifiers = [
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+
+# - - - - - - - - - - - - - - - - - - - - - - #
+# [AUTOGEN] PROJECT: DEPS           [AUTOGEN] #
+# !!! do not modify this section manually !!! #
+# !!! do not modify this section manually !!! #
+# !!! do not modify this section manually !!! #
+# - - - - - - - - - - - - - - - - - - - - - - #
+
+requires-python = ">=3.8"
+dependencies = [
+    # [AUTOGEN] by pydependence **DO NOT EDIT** [AUTOGEN]
+    "networkx",
+        # ← "pydependence._core.modules_resolver"
+        # ← "pydependence._core.modules_scope"
+    "stdlib_list",
+        # ← "pydependence._core.builtin"
+    # "tomlkit" [L]
+        # ← [L] "pydependence._core.requirements_writers"
+        # ← [L] "pydependence._core.utils"
+]
+
+# - - - - - - - - - - - - - - - - - - - - - - #
+# [AUTOGEN] PROJECT: OPTIONAL DEPS  [AUTOGEN] #
+# !!! do not modify this section manually !!! #
+# !!! do not modify this section manually !!! #
+# !!! do not modify this section manually !!! #
+# - - - - - - - - - - - - - - - - - - - - - - #
+
+[project.optional-dependencies]
+dev = [
+    "pre-commit>=2.19.0",
+    "black>=22.8.0",
+    "isort>=5.10.1",
+    "pyupgrade>=2.37.3",
+]
+
+test = [
+    "pytest>=6.2.4",
+    "pytest-cov>=2.12.1",
+]
+
+example_core_no_lazy = [
+    # [AUTOGEN] by pydependence **DO NOT EDIT** [AUTOGEN]
+    "networkx",
+        # ← "pydependence._core.modules_resolver"
+        # ← "pydependence._core.modules_scope"
+    "packaging",
+        # ← "pydependence.__main__"
+    "pydantic>=2.0.0",
+        # ← "pydependence.__main__"
+    "stdlib_list",
+        # ← "pydependence._core.builtin"
+    # "tomlkit" [L]
+        # ← [L] "pydependence._core.requirements_writers"
+        # ← [L] "pydependence._core.utils"
+]
+
+example_legacy = [
+    # [AUTOGEN] by pydependence **DO NOT EDIT** [AUTOGEN]
+    "networkx",
+        # ← "pydependence._core.modules_resolver"
+        # ← "pydependence._core.modules_scope"
+    "packaging",
+        # ← "pydependence.__main__"
+    "pydantic<2.0.0,>=1.0.0",
+        # ← "pydependence.__main__"
+    "stdlib_list",
+        # ← "pydependence._core.builtin"
+    "tomlkit", # [L]
+        # ← [L] "pydependence._core.requirements_writers"
+        # ← [L] "pydependence._core.utils"
+]

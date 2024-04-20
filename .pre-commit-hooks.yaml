@@ -1,0 +1,15 @@
+- id: pydependence
+  name: PyDependence
+  description: Generate dependencies for your project using the python AST.
+  language: python
+  always_run: true
+  verbose: true
+  entry: python3 -m pydependence.__main__
+  files: ^pyproject\.toml$
+  language_version: "3.9"
+  additional_dependencies:
+    - 'pydantic==2.*'
+    - 'packaging'
+    - 'networkx'
+    - 'stdlib_list'
+    - 'tomlkit'
