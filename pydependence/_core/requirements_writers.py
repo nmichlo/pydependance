@@ -30,7 +30,7 @@ from pydependence._core.requirements_gen import (
     WriteRequirement,
     WriteRequirementSourceModule,
 )
-from pydependence._core.utils import is_absolute_path, load_toml_document
+from pydependence._core.utils import load_toml_document
 
 # ========================================================================= #
 # WRITER - TOML                                                             #
@@ -47,7 +47,7 @@ def read_and_dump_toml_imports(
 
     # load file
     file = Path(file)
-    assert is_absolute_path(file), f"file must be an absolute path, got: {file}"
+    assert file.is_absolute(), f"file must be an absolute path, got: {file}"
     toml = load_toml_document(file)
 
     # add sections if missing

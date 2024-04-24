@@ -72,26 +72,16 @@ def assert_valid_import_name(import_: str) -> str:
 # PATH HELPER                                                               #
 # ========================================================================= #
 
-
-def is_relative_path(path: Union[str, Path]) -> bool:
-    # '..' should be considered a relative path
-    # '.' should be considered a relative path
-    # `not is_absolute` is not enough!
-    return Path(path).is_relative_to(Path("."))
-
-
-def is_absolute_path(path: Union[str, Path]) -> bool:
-    return not is_relative_path(path)
-
-
 def apply_root_to_path_str(root: Union[str, Path], path: Union[str, Path]) -> str:
-    if is_relative_path(root):
+    root = Path(root)
+    path = Path(path)
+    if not root.is_absolute():
         raise ValueError(f"root must be an absolute path, got: {root}")
-    if is_absolute_path(path):
-        path = Path(path)
+    if path.is_absolute():
+        merged = path
     else:
-        path = Path(root) / path
-    return str(path.resolve())
+        merged = root / path
+    return str(merged.resolve())
 
 
 # ========================================================================= #
@@ -122,8 +112,6 @@ def load_toml_document(path: Union[str, Path]) -> "TOMLDocument":
 __all__ = (
     "assert_valid_module_path",
     "assert_valid_import_name",
-    "is_relative_path",
-    "is_absolute_path",
     "apply_root_to_path_str",
     "load_toml_document",
 )

@@ -46,7 +46,6 @@ from pydependence._core.requirements_map import (
 from pydependence._core.requirements_writers import read_and_dump_toml_imports
 from pydependence._core.utils import (
     apply_root_to_path_str,
-    is_relative_path,
     load_toml_document,
 )
 
@@ -400,10 +399,7 @@ class PydependenceCfg(pydantic.BaseModel, extra="forbid"):
         # TODO
 
         # 4. check that the default root is a relative path
-        # '..' should be considered a relative path
-        # '.' should be considered a relative path
-        # `not is_absolute` is not enough!
-        if not is_relative_path(cfg.default_root):
+        if Path(cfg.default_root).is_absolute():
             raise ValueError(
                 f"default_root must be a relative path, got: {repr(cfg.default_root)}"
             )
@@ -531,7 +527,13 @@ class PyprojectToml(pydantic.BaseModel, extra="ignore"):
 
 
 def pydeps():
-    script, file = sys.argv
+    if len(sys.argv) == 1:
+        script = sys.argv[0]
+        file = Path(__file__).parent.parent / "pyproject.toml"
+    elif len(sys.argv) == 2:
+        script, file = sys.argv
+    else:
+        raise ValueError("too many arguments!")
     # 1. get absolute
     file = Path(file).resolve().absolute()
     # 2. load pyproject.toml
