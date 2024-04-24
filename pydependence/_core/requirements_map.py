@@ -78,7 +78,7 @@ class ImportMatcherGlob(ImportMatcherBase):
         else:
             self._parts = (*parts, last)
             self._wildcard = False
-        self._base = ".".join(parts)
+        self._base = ".".join(self._parts)
 
     def match(self, import_: str) -> bool:
         if not self._wildcard:

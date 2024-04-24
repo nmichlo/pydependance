@@ -48,6 +48,12 @@ from pydependence._core.modules_scope import (
     UnreachableModuleError,
     _find_modules,
 )
+from pydependence._core.requirements_map import (
+    ImportMatcherBase,
+    ImportMatcherGlob,
+    ImportMatcherScope,
+    RequirementsMapper,
+)
 
 # ========================================================================= #
 # fixture                                                                   #
@@ -678,6 +684,112 @@ def test_resolve_across_scopes():
     assert resolved_all_c.get_filtered()._get_imports_sources_counts() == {
         "extern_C": {"C": 1},
     }
+
+
+# ========================================================================= #
+# TESTS - REQUIREMENT REPLACEMENT                                           #
+# ========================================================================= #
+
+
+def test_import_matchers():
+    scope_a = ModulesScope()
+    scope_a.add_modules_from_package_path(
+        PKG_A, unreachable_mode=UnreachableModeEnum.keep
+    )
+    scope_b = ModulesScope()
+    scope_b.add_modules_from_package_path(PKG_B)
+
+    # SCOPE
+    matcher_scope = ImportMatcherScope(scope=scope_a)
+    # - contains
+    assert matcher_scope.match("A")
+    assert matcher_scope.match("A.a1")
+    assert not matcher_scope.match("A.a1.asdf")
+    for module in scope_a.iter_modules():
+        assert matcher_scope.match(module)
+    # - does not contain
+    assert not matcher_scope.match("B")
+    for module in scope_b.iter_modules():
+        assert not matcher_scope.match(module)
+
+    # GLOB
+    matcher_glob = ImportMatcherGlob("A.*")
+    # - contains
+    assert matcher_glob.match("A")
+    assert matcher_glob.match("A.a1")
+    assert matcher_glob.match("A.a1.asdf")
+    for module in scope_a.iter_modules():
+        assert matcher_glob.match(module)
+    # - does not contain
+    assert not matcher_glob.match("B")
+    for module in scope_b.iter_modules():
+        assert not matcher_glob.match(module)
+
+    # GLOB EXACT
+    matcher_glob = ImportMatcherGlob("A")
+    assert matcher_glob.match("A")
+    assert not matcher_glob.match("A.a1")
+    assert not matcher_glob.match("A.a1.asdf")
+
+    # GLOB
+    matcher_glob = ImportMatcherGlob("A.*")
+    assert matcher_glob.match("A")  # TODO: this is maybe unintuitive?
+    assert matcher_glob.match("A.a1")
+    assert matcher_glob.match("A.a1.asdf")
+
+    # GLOB NESTED
+    matcher_glob = ImportMatcherGlob("A.a1.*")
+    assert not matcher_glob.match("A")
+    assert matcher_glob.match("A.a1")
+    assert matcher_glob.match("A.a1.asdf")
+
+    # INVALID
+    with pytest.raises(ValueError):
+        ImportMatcherGlob("A.*.*")
+    with pytest.raises(ValueError):
+        ImportMatcherGlob("*")
+    with pytest.raises(ValueError):
+        ImportMatcherGlob(".*")
+    with pytest.raises(ValueError):
+        ImportMatcherGlob("A.")
+    with pytest.raises(ValueError):
+        ImportMatcherGlob("asdf-fdsa")
+
+
+def test_requirement_mapping():
+    scope_all = ModulesScope()
+    scope_all.add_modules_from_search_path(
+        PKGS_ROOT, unreachable_mode=UnreachableModeEnum.keep
+    )
+    scope_a = scope_all.get_restricted_scope(imports=["A"])
+    scope_b = scope_all.get_restricted_scope(imports=["B"])
+
+    mapper = RequirementsMapper(
+        env_matchers={
+            "default": [
+                ("glob_Aa3", ImportMatcherGlob("A.a3.*")),
+                ("glob_Aa4", ImportMatcherGlob("A.a4.a4i")),
+                ("glob_A", ImportMatcherGlob("A.*")),
+                ("glob_Aa2", ImportMatcherGlob("A.a2.*")),
+                ("scope_b", ImportMatcherScope(scope=scope_b)),
+                ("scope_a", ImportMatcherScope(scope=scope_a)),
+                ("scope_all", ImportMatcherScope(scope=scope_all)),
+            ]
+        }
+    )
+
+    # test
+    m = lambda x: mapper.map_import_to_requirement(x, requirements_env="default")
+    # in order:
+    assert m("A.a3.a3i") == "glob_Aa3"
+    assert m("A.a4") == "glob_A"
+    assert m("A.a4.a4i") == "glob_Aa4"
+    assert m("A.a1") == "glob_A"
+    assert m("A.a2") == "glob_A"  # != glob_Aa2
+    assert m("B.b1") == "scope_b"
+    assert m("A.a1") == "glob_A"  # != scope_a
+    assert m("C") == "scope_all"
+    assert m("asdf.fdsa") == "asdf"  # take root
 
 
 # ========================================================================= #
