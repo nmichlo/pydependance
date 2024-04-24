@@ -59,7 +59,15 @@ from pydependence._core.utils import assert_valid_import_name
 NODE_KEY_MODULE_INFO = "module_info"
 
 
-class DuplicateModuleError(RuntimeError):
+class DuplicateModulesError(RuntimeError):
+    pass
+
+
+class DuplicateModuleNamesError(DuplicateModulesError):
+    pass
+
+
+class DuplicateModulePathsError(DuplicateModulesError):
     pass
 
 
@@ -69,6 +77,27 @@ class _ModuleGraphNodeData(NamedTuple):
     @classmethod
     def from_graph_node(cls, graph: "nx.DiGraph", node: str) -> "_ModuleGraphNodeData":
         return cls(module_info=graph.nodes[node].get(NODE_KEY_MODULE_INFO, None))
+
+
+def _collect_paths_to_modules(*gs) -> "Dict[str, List[str]]":
+    module_paths = defaultdict(list)
+    for g in gs:
+        for node in g.nodes:
+            module_info = _ModuleGraphNodeData.from_graph_node(g, node).module_info
+            # skip manually added nodes!
+            if module_info is not None:
+                path = module_info.path
+                module_paths[path].append(node)
+    return dict(module_paths)
+
+
+def _assert_no_duplicate_paths(*gs) -> None:
+    module_paths = _collect_paths_to_modules(*gs)
+    for path, nodes in module_paths.items():
+        if len(nodes) > 1:
+            raise DuplicateModulePathsError(
+                f"Duplicate module paths found: {path}, modules: {sorted(nodes)}, search paths and package paths probably overlap / conflict!"
+            )
 
 
 def _find_modules(
@@ -87,6 +116,10 @@ def _find_modules(
     # load all search paths
     if search_paths is not None:
         for search_path in search_paths:
+            if not search_path.exists():
+                raise FileNotFoundError(
+                    f"Search path does not exist: {search_path}"
+                )
             if not search_path.is_dir():
                 raise NotADirectoryError(
                     f"Search path must be a directory, got: {search_path}"
@@ -94,7 +127,7 @@ def _find_modules(
             for m in ModuleMetadata.yield_search_path_modules(search_path, tag=tag):
                 if m.name in g:
                     dat = _ModuleGraphNodeData.from_graph_node(g, m.name)
-                    raise DuplicateModuleError(
+                    raise DuplicateModuleNamesError(
                         f"Duplicate module name: {repr(m.name)}, already exists as: {dat.module_info.path}, tried to add: {m.path}, from search path: {search_path}. "
                         f"These modules are incompatible and cannot be loaded together!"
                     )
@@ -108,11 +141,14 @@ def _find_modules(
             for m in ModuleMetadata.yield_package_modules(package_path, tag=tag):
                 if m.name in g:
                     dat = _ModuleGraphNodeData.from_graph_node(g, m.name)
-                    raise DuplicateModuleError(
+                    raise DuplicateModuleNamesError(
                         f"Duplicate module name: {repr(m.name)}, already exists as: {dat.module_info.path}, tried to add: {m.path}, from package path: {package_path}. "
                         f"These modules are incompatible and cannot be loaded together!"
                     )
                 g.add_node(m.name, **{NODE_KEY_MODULE_INFO: m})
+
+    # ensure modules are not duplicated
+    _assert_no_duplicate_paths(g)
 
     # add all connections to parent packages
     for node in g.nodes:
@@ -164,10 +200,12 @@ class ModulesScope:
     # ~=~=~ ADD MODULES ~=~=~ #
 
     def _merge_module_graph(self, graph: "nx.DiGraph") -> "ModulesScope":
-        # 1. get all nodes that are in both search spaces
+        # 1.a check all file paths
+        _assert_no_duplicate_paths(self._module_graph, graph)
+        # 1.b get all nodes that are in both search spaces
         nodes = set(self._module_graph.nodes) & set(graph.nodes)
         if nodes:
-            raise DuplicateModuleError(f"Duplicate module names found: {sorted(nodes)}")
+            raise DuplicateModuleNamesError(f"Duplicate module names found: {sorted(nodes)}")
         # 2. add all nodes from the other search space
         self._module_graph = nx.compose(self._module_graph, graph)
         self.__import_graph_strict = None
@@ -226,6 +264,9 @@ class ModulesScope:
 
     def is_scope_parent_set(self, other: "ModulesScope") -> bool:
         return self._module_graph.nodes <= other._module_graph.nodes
+
+    def is_scope_equal(self, other: "ModulesScope") -> bool:
+        return self._module_graph.nodes == other._module_graph.nodes
 
     def is_scope_subset(self, other: "ModulesScope") -> bool:
         return self._module_graph.nodes >= other._module_graph.nodes
@@ -293,7 +334,7 @@ class ModulesScope:
 
 
 __all__ = (
-    "DuplicateModuleError",
+    "DuplicateModuleNamesError",
     "ModulesScope",
     "RestrictMode",
     "RestrictOp",
