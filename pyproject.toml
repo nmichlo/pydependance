@@ -226,10 +226,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-    "pre-commit>=2.19.0",
-    "black>=22.8.0",
-    "isort>=5.10.1",
-    "pyupgrade>=2.37.3",
+    "pre-commit~=3.7.0",
 ]
 
 test = [
