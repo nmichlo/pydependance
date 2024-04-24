@@ -24,7 +24,7 @@
 
 
 import dataclasses
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 from pydependence._core.module_data import ModuleMetadata
 from pydependence._core.module_imports_ast import (
@@ -59,13 +59,17 @@ class ModuleImports:
 class _ModuleImportsLoader:
 
     def __init__(self):
-        self._modules_imports: "Dict[str, ModuleImports]" = {}
+        # TODO: tag could severally hurt performance? maybe should change data structure slightly?
+        #       problem is tag is nested and applied to imports too. HOWEVER, Usually tag is
+        #       automatically generated from the package name, so might not matter too much in practice.
+        self._modules_imports: "Dict[Tuple[str, str], ModuleImports]" = {}
 
     def load_module_imports(self, module_info: ModuleMetadata) -> ModuleImports:
-        v = self._modules_imports.get(module_info.name, None)
+        k = (module_info.name, module_info.tag)
+        v = self._modules_imports.get(k, None)
         if v is None:
             v = ModuleImports.from_module_info_and_parsed_file(module_info)
-            self._modules_imports[module_info.name] = v
+            self._modules_imports[k] = v
         else:
             if v.module_info != module_info:
                 raise RuntimeError(
