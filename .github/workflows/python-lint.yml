@@ -20,7 +20,8 @@ jobs:
         key: ${{ runner.os }}-pre-commit-${{ hashFiles('.pre-commit-config.yaml') }}
 
     - id: install-requirements
-      run: pip install -e .[dev]
+      # make sure to also update `pyproject.toml` with the same requirements
+      run: pip install "pre-commit~=3.7.0"
 
     - name: pre-commit
       id: pre-commit

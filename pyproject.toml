@@ -225,7 +225,9 @@ dependencies = [
 # - - - - - - - - - - - - - - - - - - - - - - #
 
 [project.optional-dependencies]
+
 dev = [
+    # make sure to also update `.github/workflows/python-lint.yml` with the same requirements
     "pre-commit~=3.7.0",
 ]
 
