@@ -561,6 +561,9 @@ def test_resolve_across_scopes():
         "extern_b1": {"B.b1": 1},
         "extern_b2": {"B.b2": 1},
     }
+
+    # *NB* *NB* *NB* *NB* *NB* *NB* *NB*
+    # e.g. this is how we can get all external deps for a project with multiple packages
     assert resolved_all.get_filtered()._get_imports_sources_counts() == {
         "extern_a1": {"A.a1": 1},
         "extern_a2": {"A.a2": 2},
@@ -584,6 +587,9 @@ def test_resolve_across_scopes():
         "extern_a3i": {"A.a3.a3i": 1},
         "extern_a4i": {"A.a4.a4i": 1},
     }
+
+    # *NB* *NB* *NB* *NB* *NB* *NB* *NB*
+    # e.g. this is how we can get external deps for the current package, and all its internal deps
     assert resolved_a.get_filtered()._get_imports_sources_counts() == {
         "B.b1": {"A.a4.a4i": 1},
         "B.b2": {"A.a2": 1, "A.a3.a3i": 1},
@@ -610,6 +616,8 @@ def test_resolve_across_scopes():
         "extern_b1": {"B.b1": 1},
         "extern_b2": {"B.b2": 1},
     }
+    # *NB* *NB* *NB* *NB* *NB* *NB* *NB*
+    # e.g. this is how we can get external deps for the current package, resolved across the current project, WITHOUT internal deps
     assert resolved_all_a.get_filtered()._get_imports_sources_counts() == {
         "extern_a1": {"A.a1": 1},
         "extern_a2": {"A.a2": 2},
