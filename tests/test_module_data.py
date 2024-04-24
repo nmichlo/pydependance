@@ -654,7 +654,9 @@ def test_resolve_across_scopes():
     # >>> C <<< #
 
     resolved_c = ScopeResolvedImports.from_scope(scope=scope_c)
-    assert resolved_c._get_imports_sources_counts() == {"extern_C": {"C": 1}}
+    assert resolved_c._get_imports_sources_counts() == {
+        "extern_C": {"C": 1},  #
+    }
     assert resolved_c.get_filtered()._get_imports_sources_counts() == {
         "extern_C": {"C": 1},
     }
@@ -662,7 +664,9 @@ def test_resolve_across_scopes():
     resolved_all_c = ScopeResolvedImports.from_scope(
         scope=scope_all, start_scope=scope_c
     )
-    assert resolved_all_c._get_imports_sources_counts() == {"extern_C": {"C": 1}}
+    assert resolved_all_c._get_imports_sources_counts() == {
+        "extern_C": {"C": 1},  #
+    }
     assert resolved_all_c.get_filtered()._get_imports_sources_counts() == {
         "extern_C": {"C": 1},
     }
