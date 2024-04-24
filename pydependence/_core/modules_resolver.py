@@ -44,7 +44,6 @@ from pydependence._core.modules_scope import NODE_KEY_MODULE_INFO, ModulesScope
 
 NODE_KEY_MODULE_IMPORTS = "module_imports"
 EDGE_KEY_IMPORTS = "imports"
-EDGE_KEY_ALL_LAZY = "all_lazy"
 
 
 class _ImportsGraphNodeData(NamedTuple):
@@ -61,7 +60,6 @@ class _ImportsGraphNodeData(NamedTuple):
 
 class _ImportsGraphEdgeData(NamedTuple):
     imports: "List[LocImportInfo]"
-    all_lazy: "Optional[bool]"
 
     @classmethod
     def from_graph_edge(
@@ -69,8 +67,11 @@ class _ImportsGraphEdgeData(NamedTuple):
     ) -> "_ImportsGraphEdgeData":
         edge_data = graph.edges[src, dst]
         imports = edge_data.get(EDGE_KEY_IMPORTS, [])
-        all_lazy = edge_data.get(EDGE_KEY_ALL_LAZY, None)
-        return cls(imports=imports, all_lazy=all_lazy)
+        return cls(imports=imports)
+
+    @property
+    def all_lazy(self) -> bool:
+        return all(imp.is_lazy for imp in self.imports)
 
 
 def _construct_module_import_graph(
@@ -100,14 +101,15 @@ def _construct_module_import_graph(
             **{NODE_KEY_MODULE_INFO: node_data, NODE_KEY_MODULE_IMPORTS: node_imports},
         )
         for imp, imports in node_imports.module_imports.items():
+            # filter out lazy, or skip
+            if skip_lazy:
+                imports = [imp for imp in imports if not imp.is_lazy]
+            # add edge
             if imports:
-                all_lazy = all(imp.is_lazy for imp in imports)
-                if skip_lazy and all_lazy:
-                    continue
                 g.add_edge(
                     node,
                     imp,
-                    **{EDGE_KEY_IMPORTS: imports, EDGE_KEY_ALL_LAZY: all_lazy},
+                    **{EDGE_KEY_IMPORTS: imports},
                 )
     return g
 
@@ -192,12 +194,24 @@ class ScopeResolvedImports:
         return {k: list(v) for k, v in self.__imports.items()}
 
     def get_imports_sources(self) -> ImportsSourcesLists:
+        # TODO: should this be the tagged name instead?
         _imports = defaultdict(lambda: defaultdict(list))
         for imp, imp_sources in self.__imports.items():
             for i in imp_sources:
-                # TODO: should this be the tagged name instead?
                 _imports[imp][i.source_module_info.name].append(i)
         return {k: dict(v) for k, v in _imports.items()}
+
+    def _get_imports_sources_counts(self) -> Dict[str, Dict[str, int]]:
+        return {
+            k: {kk: len(vv) for kk, vv in v.items()}
+            for k, v in self.get_imports_sources().items()
+        }
+
+    def _get_imports_sources_names(self) -> Dict[str, Set[str]]:
+        return {
+            k: set(v.keys())
+            for k, v in self.get_imports_sources().items()
+        }
 
 
 # ========================================================================= #

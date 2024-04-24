@@ -35,6 +35,7 @@ from pydependence._core.module_imports_loader import (
     DEFAULT_MODULE_IMPORTS_LOADER,
     ModuleImports,
 )
+from pydependence._core.modules_resolver import ScopeResolvedImports
 from pydependence._core.modules_scope import (
     _find_modules, DuplicateModuleNamesError,
     DuplicateModulePathsError, DuplicateModulesError, ModulesScope,
@@ -340,6 +341,11 @@ def test_find_modules_pkg_path():
         )
 
 
+# ========================================================================= #
+# TESTS - MODULES SCOPES                                                    #
+# ========================================================================= #
+
+
 def test_modules_scope():
 
     modules_a = {"A", "A.a1", "A.a2", "A.a3", "A.a3.a3i", "A.a4.a4i"}
@@ -430,6 +436,36 @@ def test_error_instance_of():
     assert not issubclass(DuplicateModulesError, DuplicateModuleNamesError)
     assert not issubclass(DuplicateModuleNamesError, DuplicateModulePathsError)
     assert not issubclass(DuplicateModulePathsError, DuplicateModuleNamesError)
+
+
+# ========================================================================= #
+# TESTS - RESOLVE SCOPES                                                    #
+# ========================================================================= #
+
+
+def test_resolve_scope():
+    scope_ast = ModulesScope()
+    scope_ast = scope_ast.add_modules_from_package_path(PKG_AST_TEST)
+
+    resolved = ScopeResolvedImports.from_scope(scope=scope_ast)
+    assert resolved._get_imports_sources_counts() == {
+        'os': {'t_ast_parser': 1},
+        'sys': {'t_ast_parser': 2},
+        'foo.bar': {'t_ast_parser': 1},
+        'package': {'t_ast_parser': 1},
+        'json': {'t_ast_parser': 1},
+        'asdf.fdsa': {'t_ast_parser': 1},
+        'buzz': {'t_ast_parser': 1},
+    }
+
+    # lazy should be skipped, even if repeated
+    resolved = ScopeResolvedImports.from_scope(scope=scope_ast, skip_lazy=True)
+    assert resolved._get_imports_sources_counts() == {
+        'os': {'t_ast_parser': 1},
+        'sys': {'t_ast_parser': 1},
+        'foo.bar': {'t_ast_parser': 1},
+        'package': {'t_ast_parser': 1},
+    }
 
 
 # ========================================================================= #
