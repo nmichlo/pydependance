@@ -107,8 +107,7 @@ class ModuleMetadata(NamedTuple):
     ) -> "Iterator[ModuleMetadata]":
         def _visit(p: Path):
             if p.is_dir():
-                for sub in p.glob("**/*.py"):
-                    yield sub
+                yield from p.glob("**/*.py")
             else:
                 raise ValueError(f"Invalid path: {p}")
 
@@ -131,8 +130,7 @@ class ModuleMetadata(NamedTuple):
             if p.is_file():
                 yield p
             elif p.is_dir():
-                for sub in p.glob("**/*.py"):
-                    yield sub
+                yield from p.glob("**/*.py")
             else:
                 raise ValueError(f"Invalid path: {p}")
 

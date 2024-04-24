@@ -35,11 +35,18 @@ from pydependence._core.module_imports_loader import (
     DEFAULT_MODULE_IMPORTS_LOADER,
     ModuleImports,
 )
-from pydependence._core.modules_resolver import ScopeNotASubsetError, ScopeResolvedImports
+from pydependence._core.modules_resolver import (
+    ScopeNotASubsetError,
+    ScopeResolvedImports,
+)
 from pydependence._core.modules_scope import (
-    _find_modules, DuplicateModuleNamesError,
-    DuplicateModulePathsError, DuplicateModulesError, ModulesScope, UnreachableModeEnum,
+    DuplicateModuleNamesError,
+    DuplicateModulePathsError,
+    DuplicateModulesError,
+    ModulesScope,
+    UnreachableModeEnum,
     UnreachableModuleError,
+    _find_modules,
 )
 
 # ========================================================================= #
@@ -201,31 +208,31 @@ def test_get_module_imports(module_info):
 
 def test_find_modules_search_path(module_info):
     reachable = {
-        't_ast_parser',
-        'A',
-        'A.a1',
-        'A.a2',
-        'A.a3',
-        'A.a3.a3i',
-        'B',
-        'B.b1',
-        'B.b2',
-        'C',
+        "t_ast_parser",
+        "A",
+        "A.a1",
+        "A.a2",
+        "A.a3",
+        "A.a3.a3i",
+        "B",
+        "B.b1",
+        "B.b2",
+        "C",
     }
     unreachable = {
-        'A.a4.a4i',
+        "A.a4.a4i",
     }
     edges_reachable = {
-        ('A', 'A.a1'),
-        ('A', 'A.a2'),
-        ('A', 'A.a3'),
-        ('A.a3', 'A.a3.a3i'),
-        ('B', 'B.b1'),
-        ('B', 'B.b2'),
+        ("A", "A.a1"),
+        ("A", "A.a2"),
+        ("A", "A.a3"),
+        ("A.a3", "A.a3.a3i"),
+        ("B", "B.b1"),
+        ("B", "B.b2"),
     }
     # not included!
     edges_unreachable = {
-        ('A.a4', 'A.a4.a4i'),
+        ("A.a4", "A.a4.a4i"),
     }
 
     # load all modules (default)
@@ -249,7 +256,9 @@ def test_find_modules_search_path(module_info):
     assert set(results.edges) == edges_reachable
 
     # error if unreachable
-    with pytest.raises(UnreachableModuleError, match="Unreachable module found: A.a4.a4i from root: A"):
+    with pytest.raises(
+        UnreachableModuleError, match="Unreachable module found: A.a4.a4i from root: A"
+    ):
         _find_modules(
             search_paths=[PKGS_ROOT],
             package_paths=None,
@@ -260,7 +269,7 @@ def test_find_modules_search_path(module_info):
     # load missing
     with pytest.raises(FileNotFoundError):
         _find_modules(
-            search_paths=[PKGS_ROOT / 'THIS_DOES_NOT_EXIST'],
+            search_paths=[PKGS_ROOT / "THIS_DOES_NOT_EXIST"],
             package_paths=None,
             tag="test",
             unreachable_mode=UnreachableModeEnum.keep,
@@ -283,7 +292,7 @@ def test_find_modules_search_path(module_info):
         tag="test",
         unreachable_mode=UnreachableModeEnum.keep,
     )
-    assert set(results.nodes) == {'a1', 'a2', 'a3', 'a3.a3i', 'a4.a4i'}
+    assert set(results.nodes) == {"a1", "a2", "a3", "a3.a3i", "a4.a4i"}
 
     # load conflicting modules -- reference same files but different search paths
     with pytest.raises(DuplicateModuleNamesError):
@@ -297,14 +306,14 @@ def test_find_modules_search_path(module_info):
 
 def test_find_modules_pkg_path():
     reachable_a = {
-        'A',
-        'A.a1',
-        'A.a2',
-        'A.a3',
-        'A.a3.a3i',
+        "A",
+        "A.a1",
+        "A.a2",
+        "A.a3",
+        "A.a3.a3i",
     }
     unreachable_a = {
-        'A.a4.a4i',
+        "A.a4.a4i",
     }
 
     # load all modules (default)
@@ -326,7 +335,9 @@ def test_find_modules_pkg_path():
     assert set(results.nodes) == reachable_a
 
     # error if unreachable
-    with pytest.raises(UnreachableModuleError, match="Unreachable module found: A.a4.a4i from root: A"):
+    with pytest.raises(
+        UnreachableModuleError, match="Unreachable module found: A.a4.a4i from root: A"
+    ):
         _find_modules(
             search_paths=None,
             package_paths=[PKG_A],
@@ -341,7 +352,7 @@ def test_find_modules_pkg_path():
         tag="test",
         unreachable_mode=UnreachableModeEnum.keep,
     )
-    assert set(results.nodes) == {'B', 'B.b1', 'B.b2'}
+    assert set(results.nodes) == {"B", "B.b1", "B.b2"}
 
     results = _find_modules(
         search_paths=None,
@@ -349,13 +360,13 @@ def test_find_modules_pkg_path():
         tag="test",
         unreachable_mode=UnreachableModeEnum.keep,
     )
-    assert set(results.nodes) == {'C'}
+    assert set(results.nodes) == {"C"}
 
     # load invalid
     with pytest.raises(FileNotFoundError):
         _find_modules(
             search_paths=None,
-            package_paths=[PKGS_ROOT / 'THIS_DOES_NOT_EXIST.py'],
+            package_paths=[PKGS_ROOT / "THIS_DOES_NOT_EXIST.py"],
             tag="test",
             unreachable_mode=UnreachableModeEnum.keep,
         )
@@ -364,7 +375,7 @@ def test_find_modules_pkg_path():
     with pytest.raises(DuplicateModulePathsError):
         _find_modules(
             search_paths=None,
-            package_paths=[PKG_A, PKG_A / 'a1.py'],
+            package_paths=[PKG_A, PKG_A / "a1.py"],
             tag="test",
             unreachable_mode=UnreachableModeEnum.keep,
         )
@@ -383,20 +394,28 @@ def test_modules_scope():
     modules_all = modules_a | modules_b | modules_c | {"t_ast_parser"}
 
     scope = ModulesScope()
-    scope.add_modules_from_package_path(PKG_A, unreachable_mode=UnreachableModeEnum.keep)
+    scope.add_modules_from_package_path(
+        PKG_A, unreachable_mode=UnreachableModeEnum.keep
+    )
     assert set(scope.iter_modules()) == modules_a
     # this should not edit the original if it fails
     with pytest.raises(DuplicateModulePathsError):
-        scope.add_modules_from_package_path(PKG_A / 'a1.py', unreachable_mode=UnreachableModeEnum.keep)
+        scope.add_modules_from_package_path(
+            PKG_A / "a1.py", unreachable_mode=UnreachableModeEnum.keep
+        )
     with pytest.raises(DuplicateModulePathsError):
-        scope.add_modules_from_package_path(PKG_A, unreachable_mode=UnreachableModeEnum.keep)
+        scope.add_modules_from_package_path(
+            PKG_A, unreachable_mode=UnreachableModeEnum.keep
+        )
     assert set(scope.iter_modules()) == modules_a
     # handle unreachable
     with pytest.raises(UnreachableModuleError):
         scope.add_modules_from_package_path(PKG_A)
 
     scope = ModulesScope()
-    scope.add_modules_from_search_path(PKGS_ROOT, unreachable_mode=UnreachableModeEnum.keep)
+    scope.add_modules_from_search_path(
+        PKGS_ROOT, unreachable_mode=UnreachableModeEnum.keep
+    )
     assert set(scope.iter_modules()) == modules_all
 
     scope = ModulesScope()
@@ -407,13 +426,17 @@ def test_modules_scope():
 
     # merge scopes & check subsets
     scope_all = ModulesScope()
-    scope_all.add_modules_from_search_path(PKGS_ROOT, unreachable_mode=UnreachableModeEnum.keep)
+    scope_all.add_modules_from_search_path(
+        PKGS_ROOT, unreachable_mode=UnreachableModeEnum.keep
+    )
     assert set(scope_all.iter_modules()) == modules_all
     with pytest.raises(UnreachableModuleError):
         scope_all.add_modules_from_search_path(PKGS_ROOT)
 
     scope_a = ModulesScope()
-    scope_a.add_modules_from_package_path(PKG_A, unreachable_mode=UnreachableModeEnum.keep)
+    scope_a.add_modules_from_package_path(
+        PKG_A, unreachable_mode=UnreachableModeEnum.keep
+    )
     assert set(scope_a.iter_modules()) == modules_a
     with pytest.raises(UnreachableModuleError):
         scope_a.add_modules_from_package_path(PKG_A)
@@ -485,28 +508,30 @@ def test_resolve_scope():
 
     resolved = ScopeResolvedImports.from_scope(scope=scope_ast)
     assert resolved._get_imports_sources_counts() == {
-        'os': {'t_ast_parser': 1},
-        'sys': {'t_ast_parser': 2},
-        'foo.bar': {'t_ast_parser': 1},
-        'package': {'t_ast_parser': 1},
-        'json': {'t_ast_parser': 1},
-        'asdf.fdsa': {'t_ast_parser': 1},
-        'buzz': {'t_ast_parser': 1},
+        "os": {"t_ast_parser": 1},
+        "sys": {"t_ast_parser": 2},
+        "foo.bar": {"t_ast_parser": 1},
+        "package": {"t_ast_parser": 1},
+        "json": {"t_ast_parser": 1},
+        "asdf.fdsa": {"t_ast_parser": 1},
+        "buzz": {"t_ast_parser": 1},
     }
 
     # lazy should be skipped, even if repeated
     resolved = ScopeResolvedImports.from_scope(scope=scope_ast, skip_lazy=True)
     assert resolved._get_imports_sources_counts() == {
-        'os': {'t_ast_parser': 1},
-        'sys': {'t_ast_parser': 1},
-        'foo.bar': {'t_ast_parser': 1},
-        'package': {'t_ast_parser': 1},
+        "os": {"t_ast_parser": 1},
+        "sys": {"t_ast_parser": 1},
+        "foo.bar": {"t_ast_parser": 1},
+        "package": {"t_ast_parser": 1},
     }
 
 
 def test_resolve_across_scopes():
     scope_all = ModulesScope()
-    scope_all.add_modules_from_package_path(package_path=PKG_A, unreachable_mode=UnreachableModeEnum.keep)
+    scope_all.add_modules_from_package_path(
+        package_path=PKG_A, unreachable_mode=UnreachableModeEnum.keep
+    )
     scope_all.add_modules_from_package_path(package_path=PKG_B)
     scope_all.add_modules_from_package_path(package_path=PKG_C)
 
@@ -523,123 +548,123 @@ def test_resolve_across_scopes():
 
     resolved_all = ScopeResolvedImports.from_scope(scope=scope_all)
     assert resolved_all._get_imports_sources_counts() == {
-        'A.a2': {'A.a1': 1},
-        'A.a4.a4i': {'A.a3.a3i': 1},
-        'B.b1': {'A.a4.a4i': 1},
-        'B.b2': {'A.a2': 1, 'A.a3.a3i': 1, 'B.b1': 1},
-        'C': {'B.b2': 2},
-        'extern_C': {'C': 1},
-        'extern_a1': {'A.a1': 1},
-        'extern_a2': {'A.a2': 2},
-        'extern_a3i': {'A.a3.a3i': 1},
-        'extern_a4i': {'A.a4.a4i': 1},
-        'extern_b1': {'B.b1': 1},
-        'extern_b2': {'B.b2': 1}
+        "A.a2": {"A.a1": 1},
+        "A.a4.a4i": {"A.a3.a3i": 1},
+        "B.b1": {"A.a4.a4i": 1},
+        "B.b2": {"A.a2": 1, "A.a3.a3i": 1, "B.b1": 1},
+        "C": {"B.b2": 2},
+        "extern_C": {"C": 1},
+        "extern_a1": {"A.a1": 1},
+        "extern_a2": {"A.a2": 2},
+        "extern_a3i": {"A.a3.a3i": 1},
+        "extern_a4i": {"A.a4.a4i": 1},
+        "extern_b1": {"B.b1": 1},
+        "extern_b2": {"B.b2": 1},
     }
     assert resolved_all.get_filtered()._get_imports_sources_counts() == {
-        'extern_a1': {'A.a1': 1},
-        'extern_a2': {'A.a2': 2},
-        'extern_a3i': {'A.a3.a3i': 1},
-        'extern_a4i': {'A.a4.a4i': 1},
-        'extern_b1': {'B.b1': 1},
-        'extern_b2': {'B.b2': 1},
-        'extern_C': {'C': 1},
+        "extern_a1": {"A.a1": 1},
+        "extern_a2": {"A.a2": 2},
+        "extern_a3i": {"A.a3.a3i": 1},
+        "extern_a4i": {"A.a4.a4i": 1},
+        "extern_b1": {"B.b1": 1},
+        "extern_b2": {"B.b2": 1},
+        "extern_C": {"C": 1},
     }
 
     # >>> A <<< #
 
     resolved_a = ScopeResolvedImports.from_scope(scope=scope_a)
     assert resolved_a._get_imports_sources_counts() == {
-        'A.a2': {'A.a1': 1},
-        'A.a4.a4i': {'A.a3.a3i': 1},
-        'B.b1': {'A.a4.a4i': 1},
-        'B.b2': {'A.a2': 1, 'A.a3.a3i': 1},
-        'extern_a1': {'A.a1': 1},
-        'extern_a2': {'A.a2': 2},
-        'extern_a3i': {'A.a3.a3i': 1},
-        'extern_a4i': {'A.a4.a4i': 1}
+        "A.a2": {"A.a1": 1},
+        "A.a4.a4i": {"A.a3.a3i": 1},
+        "B.b1": {"A.a4.a4i": 1},
+        "B.b2": {"A.a2": 1, "A.a3.a3i": 1},
+        "extern_a1": {"A.a1": 1},
+        "extern_a2": {"A.a2": 2},
+        "extern_a3i": {"A.a3.a3i": 1},
+        "extern_a4i": {"A.a4.a4i": 1},
     }
     assert resolved_a.get_filtered()._get_imports_sources_counts() == {
-        'B.b1': {'A.a4.a4i': 1},
-        'B.b2': {'A.a2': 1, 'A.a3.a3i': 1},
-        'extern_a1': {'A.a1': 1},
-        'extern_a2': {'A.a2': 2},
-        'extern_a3i': {'A.a3.a3i': 1},
-        'extern_a4i': {'A.a4.a4i': 1},
+        "B.b1": {"A.a4.a4i": 1},
+        "B.b2": {"A.a2": 1, "A.a3.a3i": 1},
+        "extern_a1": {"A.a1": 1},
+        "extern_a2": {"A.a2": 2},
+        "extern_a3i": {"A.a3.a3i": 1},
+        "extern_a4i": {"A.a4.a4i": 1},
     }
 
     resolved_all_a = ScopeResolvedImports.from_scope(
         scope=scope_all, start_scope=scope_a
     )
     assert resolved_all_a._get_imports_sources_counts() == {
-        'A.a2': {'A.a1': 1},
-        'A.a4.a4i': {'A.a3.a3i': 1},
-        'B.b1': {'A.a4.a4i': 1},
-        'B.b2': {'A.a2': 1, 'A.a3.a3i': 1, 'B.b1': 1},
-        'C': {'B.b2': 2},
-        'extern_C': {'C': 1},
-        'extern_a1': {'A.a1': 1},
-        'extern_a2': {'A.a2': 2},
-        'extern_a3i': {'A.a3.a3i': 1},
-        'extern_a4i': {'A.a4.a4i': 1},
-        'extern_b1': {'B.b1': 1},
-        'extern_b2': {'B.b2': 1}
+        "A.a2": {"A.a1": 1},
+        "A.a4.a4i": {"A.a3.a3i": 1},
+        "B.b1": {"A.a4.a4i": 1},
+        "B.b2": {"A.a2": 1, "A.a3.a3i": 1, "B.b1": 1},
+        "C": {"B.b2": 2},
+        "extern_C": {"C": 1},
+        "extern_a1": {"A.a1": 1},
+        "extern_a2": {"A.a2": 2},
+        "extern_a3i": {"A.a3.a3i": 1},
+        "extern_a4i": {"A.a4.a4i": 1},
+        "extern_b1": {"B.b1": 1},
+        "extern_b2": {"B.b2": 1},
     }
     assert resolved_all_a.get_filtered()._get_imports_sources_counts() == {
-        'extern_a1': {'A.a1': 1},
-        'extern_a2': {'A.a2': 2},
-        'extern_a3i': {'A.a3.a3i': 1},
-        'extern_a4i': {'A.a4.a4i': 1},
-        'extern_b1': {'B.b1': 1},
-        'extern_b2': {'B.b2': 1},
-        'extern_C': {'C': 1},
+        "extern_a1": {"A.a1": 1},
+        "extern_a2": {"A.a2": 2},
+        "extern_a3i": {"A.a3.a3i": 1},
+        "extern_a4i": {"A.a4.a4i": 1},
+        "extern_b1": {"B.b1": 1},
+        "extern_b2": {"B.b2": 1},
+        "extern_C": {"C": 1},
     }
 
     # >>> B <<< #
 
     resolved_b = ScopeResolvedImports.from_scope(scope=scope_b)
     assert resolved_b._get_imports_sources_counts() == {
-        'B.b2': {'B.b1': 1},
-        'C': {'B.b2': 2},
-        'extern_b1': {'B.b1': 1},
-        'extern_b2': {'B.b2': 1}
+        "B.b2": {"B.b1": 1},
+        "C": {"B.b2": 2},
+        "extern_b1": {"B.b1": 1},
+        "extern_b2": {"B.b2": 1},
     }
     assert resolved_b.get_filtered()._get_imports_sources_counts() == {
-        'C': {'B.b2': 2},
-        'extern_b1': {'B.b1': 1},
-        'extern_b2': {'B.b2': 1},
+        "C": {"B.b2": 2},
+        "extern_b1": {"B.b1": 1},
+        "extern_b2": {"B.b2": 1},
     }
 
     resolved_all_b = ScopeResolvedImports.from_scope(
         scope=scope_all, start_scope=scope_b
     )
     assert resolved_all_b._get_imports_sources_counts() == {
-        'B.b2': {'B.b1': 1},
-        'C': {'B.b2': 2},
-        'extern_C': {'C': 1},
-        'extern_b1': {'B.b1': 1},
-        'extern_b2': {'B.b2': 1}
+        "B.b2": {"B.b1": 1},
+        "C": {"B.b2": 2},
+        "extern_C": {"C": 1},
+        "extern_b1": {"B.b1": 1},
+        "extern_b2": {"B.b2": 1},
     }
     assert resolved_all_b.get_filtered()._get_imports_sources_counts() == {
-        'extern_b1': {'B.b1': 1},
-        'extern_b2': {'B.b2': 1},
-        'extern_C': {'C': 1},
+        "extern_b1": {"B.b1": 1},
+        "extern_b2": {"B.b2": 1},
+        "extern_C": {"C": 1},
     }
 
     # >>> C <<< #
 
     resolved_c = ScopeResolvedImports.from_scope(scope=scope_c)
-    assert resolved_c._get_imports_sources_counts() == {'extern_C': {'C': 1}}
+    assert resolved_c._get_imports_sources_counts() == {"extern_C": {"C": 1}}
     assert resolved_c.get_filtered()._get_imports_sources_counts() == {
-        'extern_C': {'C': 1},
+        "extern_C": {"C": 1},
     }
 
     resolved_all_c = ScopeResolvedImports.from_scope(
         scope=scope_all, start_scope=scope_c
     )
-    assert resolved_all_c._get_imports_sources_counts() == {'extern_C': {'C': 1}}
+    assert resolved_all_c._get_imports_sources_counts() == {"extern_C": {"C": 1}}
     assert resolved_all_c.get_filtered()._get_imports_sources_counts() == {
-        'extern_C': {'C': 1},
+        "extern_C": {"C": 1},
     }
 
 

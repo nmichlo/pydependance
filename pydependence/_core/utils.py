@@ -72,6 +72,7 @@ def assert_valid_import_name(import_: str) -> str:
 # PATH HELPER                                                               #
 # ========================================================================= #
 
+
 def apply_root_to_path_str(root: Union[str, Path], path: Union[str, Path]) -> str:
     root = Path(root)
     path = Path(path)

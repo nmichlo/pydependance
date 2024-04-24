@@ -128,9 +128,7 @@ def _find_modules(
     if search_paths is not None:
         for search_path in search_paths:
             if not search_path.exists():
-                raise FileNotFoundError(
-                    f"Search path does not exist: {search_path}"
-                )
+                raise FileNotFoundError(f"Search path does not exist: {search_path}")
             if not search_path.is_dir():
                 raise NotADirectoryError(
                     f"Search path must be a directory, got: {search_path}"
@@ -221,7 +219,9 @@ class ModulesScope:
         # 1.b get all nodes that are in both search spaces
         nodes = set(self._module_graph.nodes) & set(graph.nodes)
         if nodes:
-            raise DuplicateModuleNamesError(f"Duplicate module names found: {sorted(nodes)}")
+            raise DuplicateModuleNamesError(
+                f"Duplicate module names found: {sorted(nodes)}"
+            )
         # 2. add all nodes from the other search space
         self._module_graph = nx.compose(self._module_graph, graph)
         self.__import_graph_strict = None

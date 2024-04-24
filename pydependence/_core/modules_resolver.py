@@ -200,6 +200,7 @@ class ScopeResolvedImports:
             if exclude_in_search_space and self.__scope.has_module(k):
                 return False
             return True
+
         # filter
         new_imports = defaultdict(list)
         for k, v in self.__imports.items():
@@ -231,10 +232,7 @@ class ScopeResolvedImports:
         }
 
     def _get_imports_sources_names(self) -> Dict[str, Set[str]]:
-        return {
-            k: set(v.keys())
-            for k, v in self.get_imports_sources().items()
-        }
+        return {k: set(v.keys()) for k, v in self.get_imports_sources().items()}
 
 
 # ========================================================================= #

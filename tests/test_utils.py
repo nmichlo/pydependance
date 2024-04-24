@@ -1,10 +1,12 @@
-import pytest
 from pathlib import Path
+
+import pytest
+
 from pydependence._core.utils import (
-    assert_valid_tag,
-    assert_valid_module_path,
-    assert_valid_import_name,
     apply_root_to_path_str,
+    assert_valid_import_name,
+    assert_valid_module_path,
+    assert_valid_tag,
 )
 
 
@@ -36,8 +38,9 @@ def test_assert_valid_import_name():
 
 def test_apply_root_to_path_str():
     root = str(Path.home())
-    assert apply_root_to_path_str(root, "relative/path") == str((Path(root) / "relative/path").resolve())
+    assert apply_root_to_path_str(root, "relative/path") == str(
+        (Path(root) / "relative/path").resolve()
+    )
     with pytest.raises(ValueError):
         apply_root_to_path_str("relative/path", "another/relative/path")
     assert apply_root_to_path_str(root, str(Path.home())) == str(Path.home().resolve())
-

@@ -44,10 +44,7 @@ from pydependence._core.requirements_map import (
     RequirementsMapper,
 )
 from pydependence._core.requirements_writers import read_and_dump_toml_imports
-from pydependence._core.utils import (
-    apply_root_to_path_str,
-    load_toml_document,
-)
+from pydependence._core.utils import apply_root_to_path_str, load_toml_document
 
 # ========================================================================= #
 # CONFIGS                                                                   #
