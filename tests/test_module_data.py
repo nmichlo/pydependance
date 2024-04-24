@@ -35,7 +35,7 @@ from pydependence._core.module_imports_loader import (
     DEFAULT_MODULE_IMPORTS_LOADER,
     ModuleImports,
 )
-from pydependence._core.modules_resolver import ScopeResolvedImports
+from pydependence._core.modules_resolver import ScopeNotASubsetError, ScopeResolvedImports
 from pydependence._core.modules_scope import (
     _find_modules, DuplicateModuleNamesError,
     DuplicateModulePathsError, DuplicateModulesError, ModulesScope, UnreachableModeEnum,
@@ -510,10 +510,137 @@ def test_resolve_across_scopes():
     scope_all.add_modules_from_package_path(package_path=PKG_B)
     scope_all.add_modules_from_package_path(package_path=PKG_C)
 
-    with pytest.raises(UnreachableModuleError):
-        scope_all.add_modules_from_package_path(package_path=PKG_A)
+    # restrict
+    scope_a = scope_all.get_restricted_scope(imports=["A"])
+    scope_b = scope_all.get_restricted_scope(imports=["B"])
+    scope_c = scope_all.get_restricted_scope(imports=["C"])
 
     # subscope
+    with pytest.raises(ScopeNotASubsetError):
+        ScopeResolvedImports.from_scope(scope=scope_c, start_scope=scope_all)
+
+    # >>> ALL <<< #
+
+    resolved_all = ScopeResolvedImports.from_scope(scope=scope_all)
+    assert resolved_all._get_imports_sources_counts() == {
+        'A.a2': {'A.a1': 1},
+        'A.a4.a4i': {'A.a3.a3i': 1},
+        'B.b1': {'A.a4.a4i': 1},
+        'B.b2': {'A.a2': 1, 'A.a3.a3i': 1, 'B.b1': 1},
+        'C': {'B.b2': 2},
+        'extern_C': {'C': 1},
+        'extern_a1': {'A.a1': 1},
+        'extern_a2': {'A.a2': 2},
+        'extern_a3i': {'A.a3.a3i': 1},
+        'extern_a4i': {'A.a4.a4i': 1},
+        'extern_b1': {'B.b1': 1},
+        'extern_b2': {'B.b2': 1}
+    }
+    assert resolved_all.get_filtered()._get_imports_sources_counts() == {
+        'extern_a1': {'A.a1': 1},
+        'extern_a2': {'A.a2': 2},
+        'extern_a3i': {'A.a3.a3i': 1},
+        'extern_a4i': {'A.a4.a4i': 1},
+        'extern_b1': {'B.b1': 1},
+        'extern_b2': {'B.b2': 1},
+        'extern_C': {'C': 1},
+    }
+
+    # >>> A <<< #
+
+    resolved_a = ScopeResolvedImports.from_scope(scope=scope_a)
+    assert resolved_a._get_imports_sources_counts() == {
+        'A.a2': {'A.a1': 1},
+        'A.a4.a4i': {'A.a3.a3i': 1},
+        'B.b1': {'A.a4.a4i': 1},
+        'B.b2': {'A.a2': 1, 'A.a3.a3i': 1},
+        'extern_a1': {'A.a1': 1},
+        'extern_a2': {'A.a2': 2},
+        'extern_a3i': {'A.a3.a3i': 1},
+        'extern_a4i': {'A.a4.a4i': 1}
+    }
+    assert resolved_a.get_filtered()._get_imports_sources_counts() == {
+        'B.b1': {'A.a4.a4i': 1},
+        'B.b2': {'A.a2': 1, 'A.a3.a3i': 1},
+        'extern_a1': {'A.a1': 1},
+        'extern_a2': {'A.a2': 2},
+        'extern_a3i': {'A.a3.a3i': 1},
+        'extern_a4i': {'A.a4.a4i': 1},
+    }
+
+    resolved_all_a = ScopeResolvedImports.from_scope(
+        scope=scope_all, start_scope=scope_a
+    )
+    assert resolved_all_a._get_imports_sources_counts() == {
+        'A.a2': {'A.a1': 1},
+        'A.a4.a4i': {'A.a3.a3i': 1},
+        'B.b1': {'A.a4.a4i': 1},
+        'B.b2': {'A.a2': 1, 'A.a3.a3i': 1, 'B.b1': 1},
+        'C': {'B.b2': 2},
+        'extern_C': {'C': 1},
+        'extern_a1': {'A.a1': 1},
+        'extern_a2': {'A.a2': 2},
+        'extern_a3i': {'A.a3.a3i': 1},
+        'extern_a4i': {'A.a4.a4i': 1},
+        'extern_b1': {'B.b1': 1},
+        'extern_b2': {'B.b2': 1}
+    }
+    assert resolved_all_a.get_filtered()._get_imports_sources_counts() == {
+        'extern_a1': {'A.a1': 1},
+        'extern_a2': {'A.a2': 2},
+        'extern_a3i': {'A.a3.a3i': 1},
+        'extern_a4i': {'A.a4.a4i': 1},
+        'extern_b1': {'B.b1': 1},
+        'extern_b2': {'B.b2': 1},
+        'extern_C': {'C': 1},
+    }
+
+    # >>> B <<< #
+
+    resolved_b = ScopeResolvedImports.from_scope(scope=scope_b)
+    assert resolved_b._get_imports_sources_counts() == {
+        'B.b2': {'B.b1': 1},
+        'C': {'B.b2': 2},
+        'extern_b1': {'B.b1': 1},
+        'extern_b2': {'B.b2': 1}
+    }
+    assert resolved_b.get_filtered()._get_imports_sources_counts() == {
+        'C': {'B.b2': 2},
+        'extern_b1': {'B.b1': 1},
+        'extern_b2': {'B.b2': 1},
+    }
+
+    resolved_all_b = ScopeResolvedImports.from_scope(
+        scope=scope_all, start_scope=scope_b
+    )
+    assert resolved_all_b._get_imports_sources_counts() == {
+        'B.b2': {'B.b1': 1},
+        'C': {'B.b2': 2},
+        'extern_C': {'C': 1},
+        'extern_b1': {'B.b1': 1},
+        'extern_b2': {'B.b2': 1}
+    }
+    assert resolved_all_b.get_filtered()._get_imports_sources_counts() == {
+        'extern_b1': {'B.b1': 1},
+        'extern_b2': {'B.b2': 1},
+        'extern_C': {'C': 1},
+    }
+
+    # >>> C <<< #
+
+    resolved_c = ScopeResolvedImports.from_scope(scope=scope_c)
+    assert resolved_c._get_imports_sources_counts() == {'extern_C': {'C': 1}}
+    assert resolved_c.get_filtered()._get_imports_sources_counts() == {
+        'extern_C': {'C': 1},
+    }
+
+    resolved_all_c = ScopeResolvedImports.from_scope(
+        scope=scope_all, start_scope=scope_c
+    )
+    assert resolved_all_c._get_imports_sources_counts() == {'extern_C': {'C': 1}}
+    assert resolved_all_c.get_filtered()._get_imports_sources_counts() == {
+        'extern_C': {'C': 1},
+    }
 
 
 # ========================================================================= #

@@ -123,6 +123,10 @@ ImportsDict = Dict[str, List[LocImportInfo]]
 ImportsSourcesLists = Dict[str, Dict[str, LocImportInfo]]
 
 
+class ScopeNotASubsetError(ValueError):
+    pass
+
+
 def _resolve_scope_imports(
     scope: "ModulesScope",
     start_scope: "Optional[ModulesScope]",
@@ -131,7 +135,7 @@ def _resolve_scope_imports(
     if start_scope is None:
         start_scope = scope
     if not scope.is_scope_subset(start_scope):
-        raise ValueError("Start scope must be a subset of the parent scope!")
+        raise ScopeNotASubsetError("Start scope must be a subset of the parent scope!")
 
     # 1. construct
     # - if all imports are lazy, then we don't need to traverse them! (depending on mode)
@@ -156,7 +160,10 @@ def _resolve_scope_imports(
 class ScopeResolvedImports:
 
     def __init__(
-        self, scope: "ModulesScope", start_scope: "ModulesScope", imports: "ImportsDict"
+        self,
+        scope: "ModulesScope",
+        start_scope: "ModulesScope",
+        imports: "ImportsDict",
     ):
         self.__scope = scope
         self.__start_scope = start_scope
@@ -172,23 +179,39 @@ class ScopeResolvedImports:
         if start_scope is None:
             start_scope = scope
         imports = _resolve_scope_imports(
-            scope=scope, start_scope=start_scope, skip_lazy=skip_lazy
+            scope=scope,
+            start_scope=start_scope,
+            skip_lazy=skip_lazy,
         )
-        return cls(scope=scope, start_scope=start_scope, imports=imports)
+        return cls(
+            scope=scope,
+            start_scope=start_scope,
+            imports=imports,
+        )
 
-    def _filter_keys(
+    def get_filtered(
         self,
-        keys: "Iterable[str]",
-        *,
         exclude_in_search_space: bool = True,
         exclude_builtins: bool = True,
-    ) -> "Set[str]":
-        keys = set(keys)
-        if exclude_in_search_space:
-            keys -= set(self.__scope.iter_modules())
-        if exclude_builtins:
-            keys -= BUILTIN_MODULE_NAMES
-        return keys
+    ) -> "ScopeResolvedImports":
+        def _keep(k):
+            if exclude_builtins and k in BUILTIN_MODULE_NAMES:
+                return False
+            if exclude_in_search_space and self.__scope.has_module(k):
+                return False
+            return True
+        # filter
+        new_imports = defaultdict(list)
+        for k, v in self.__imports.items():
+            if _keep(k):
+                # v = [imp for imp in v if _keep(imp.source_module_info.name)]
+                new_imports[k] = v
+        # return
+        return ScopeResolvedImports(
+            scope=self.__scope,
+            start_scope=self.__start_scope,
+            imports=dict(new_imports),
+        )
 
     def get_imports(self) -> ImportsDict:
         return {k: list(v) for k, v in self.__imports.items()}
