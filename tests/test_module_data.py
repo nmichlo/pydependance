@@ -24,33 +24,45 @@
 
 from pathlib import Path
 
+import pytest
+
 from pydependence._core.module_data import ModuleMetadata
 from pydependence._core.module_imports_ast import (
     LocImportInfo,
     load_imports_from_module_info,
 )
+from pydependence._core.module_imports_loader import DEFAULT_MODULE_IMPORTS_LOADER
 
-PKG_ROOT = Path(__file__).parent / "test-packages"
-
-TEST_MODULE_INFO = ModuleMetadata.from_root_and_subpath(
-    root=PKG_ROOT,
-    subpath=PKG_ROOT / "t_ast_parser.py",
-    tag="test",
-)
 
 # ========================================================================= #
-# TESTS                                                                     #
+# fixture                                                                   #
 # ========================================================================= #
 
 
-def test_ast_get_module_imports(tmp_path):
+@pytest.fixture
+def module_info():
+    pkg_root = Path(__file__).parent / "test-packages"
+
+    return ModuleMetadata.from_root_and_subpath(
+        root=pkg_root,
+        subpath=pkg_root / "t_ast_parser.py",
+        tag="test",
+    )
+
+
+# ========================================================================= #
+# TESTS - DATA & AST                                                        #
+# ========================================================================= #
+
+
+def test_ast_get_module_imports(module_info, tmp_path):
     # checks
-    results = load_imports_from_module_info(TEST_MODULE_INFO)
+    results = load_imports_from_module_info(module_info)
 
     a = {
         "asdf.fdsa": [
             LocImportInfo(
-                source_module_info=TEST_MODULE_INFO,
+                source_module_info=module_info,
                 source="import_from",
                 target="asdf.fdsa",
                 is_lazy=True,
@@ -62,7 +74,7 @@ def test_ast_get_module_imports(tmp_path):
         ],
         "buzz": [
             LocImportInfo(
-                source_module_info=TEST_MODULE_INFO,
+                source_module_info=module_info,
                 source="lazy_plugin",
                 target="buzz",
                 is_lazy=True,
@@ -74,7 +86,7 @@ def test_ast_get_module_imports(tmp_path):
         ],
         "foo.bar": [
             LocImportInfo(
-                source_module_info=TEST_MODULE_INFO,
+                source_module_info=module_info,
                 source="import_from",
                 target="foo.bar",
                 is_lazy=False,
@@ -86,7 +98,7 @@ def test_ast_get_module_imports(tmp_path):
         ],
         "json": [
             LocImportInfo(
-                source_module_info=TEST_MODULE_INFO,
+                source_module_info=module_info,
                 source="import_",
                 target="json",
                 is_lazy=True,
@@ -98,7 +110,7 @@ def test_ast_get_module_imports(tmp_path):
         ],
         "os": [
             LocImportInfo(
-                source_module_info=TEST_MODULE_INFO,
+                source_module_info=module_info,
                 source="import_",
                 target="os",
                 is_lazy=False,
@@ -110,7 +122,7 @@ def test_ast_get_module_imports(tmp_path):
         ],
         "sys": [
             LocImportInfo(
-                source_module_info=TEST_MODULE_INFO,
+                source_module_info=module_info,
                 source="import_from",
                 target="sys",
                 is_lazy=False,
@@ -120,7 +132,7 @@ def test_ast_get_module_imports(tmp_path):
                 is_relative=False,
             ),
             LocImportInfo(
-                source_module_info=TEST_MODULE_INFO,
+                source_module_info=module_info,
                 source="import_",
                 target="sys",
                 is_lazy=True,
@@ -132,7 +144,7 @@ def test_ast_get_module_imports(tmp_path):
         ],
         "package": [
             LocImportInfo(
-                source_module_info=TEST_MODULE_INFO,
+                source_module_info=module_info,
                 source="import_from",
                 target="package",
                 is_lazy=False,
@@ -145,7 +157,23 @@ def test_ast_get_module_imports(tmp_path):
     }
 
     assert set(results.keys()) == set(a.keys())
-    assert a == results
+    assert results == a
+
+    # checks
+    results_2 = DEFAULT_MODULE_IMPORTS_LOADER.load_module_imports(module_info)
+    assert set(results_2.module_imports.keys()) == set(a.keys())
+    assert results_2.module_imports == a
+    assert results_2.module_info == module_info
+
+    results_3 = DEFAULT_MODULE_IMPORTS_LOADER.load_module_imports(module_info)
+    assert set(results_3.module_imports.keys()) == set(a.keys())
+    assert results_3.module_imports == a
+    assert results_3.module_info == module_info
+
+    # check same instance i.e. cache is working!
+    assert results_2.module_info is module_info
+    assert results_3.module_info is module_info
+    assert results_2 is results_3
 
 
 # ========================================================================= #
