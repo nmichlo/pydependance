@@ -100,11 +100,22 @@ def _assert_no_duplicate_paths(*gs) -> None:
             )
 
 
+class UnreachableModeEnum(str, Enum):
+    error = "error"
+    skip = "skip"
+    keep = "keep"
+
+
+class UnreachableModuleError(RuntimeError):
+    pass
+
+
 def _find_modules(
+    *,
     search_paths: "Optional[Sequence[Path]]",
     package_paths: "Optional[Sequence[Path]]",
     tag: str,
-    reachable_only: bool = False,
+    unreachable_mode: UnreachableModeEnum,
 ) -> "nx.DiGraph":
     """
     Construct a graph of all modules found in the search paths and package paths.
@@ -163,12 +174,17 @@ def _find_modules(
         raise RuntimeError(f"[BUG] Empty module name found in graph: {g}")
 
     # reverse traverse from each node to the root to figure out which nodes are reachable, then filter them out.
-    if reachable_only:
+    if unreachable_mode in (UnreachableModeEnum.skip, UnreachableModeEnum.error):
         reverse = g.reverse()
         for node in list(g.nodes):
             root = node.split(".")[0]
             if not nx.has_path(reverse, node, root):
-                g.remove_node(node)
+                if unreachable_mode == UnreachableModeEnum.error:
+                    raise UnreachableModuleError(
+                        f"Unreachable module found: {node} from root: {root}, module is probably not marked as a package or is missing an __init__.py file!"
+                    )
+                else:
+                    g.remove_node(node)
 
     # * DiGraph [ import_path -> Node(module_info) ]
     return g
@@ -224,25 +240,41 @@ class ModulesScope:
         return self._merge_module_graph(graph=g)
 
     def add_modules_from_search_path(
-        self, search_path: Path, tag: Optional[str] = None
+        self,
+        search_path: Path,
+        tag: Optional[str] = None,
+        unreachable_mode: UnreachableModeEnum = UnreachableModeEnum.error,
     ) -> "ModulesScope":
         if tag is None:
             tag = search_path.name
             warnings.warn(
                 f"No tag provided for search path: {repr(search_path)}, using path name as tag: {repr(tag)}"
             )
-        graph = _find_modules(search_paths=[search_path], package_paths=None, tag=tag)
+        graph = _find_modules(
+            search_paths=[search_path],
+            package_paths=None,
+            tag=tag,
+            unreachable_mode=unreachable_mode,
+        )
         return self._merge_module_graph(graph=graph)
 
     def add_modules_from_package_path(
-        self, package_path: Path, tag: Optional[str] = None
+        self,
+        package_path: Path,
+        tag: Optional[str] = None,
+        unreachable_mode: UnreachableModeEnum = UnreachableModeEnum.error,
     ) -> "ModulesScope":
         if tag is None:
             tag = package_path.parent.name
             warnings.warn(
                 f"No tag provided for package path: {repr(package_path)}, using parent name as tag: {repr(tag)}"
             )
-        graph = _find_modules(search_paths=None, package_paths=[package_path], tag=tag)
+        graph = _find_modules(
+            search_paths=None,
+            package_paths=[package_path],
+            tag=tag,
+            unreachable_mode=unreachable_mode,
+        )
         return self._merge_module_graph(graph=graph)
 
     # ~=~=~ MODULE INFO ~=~=~ #

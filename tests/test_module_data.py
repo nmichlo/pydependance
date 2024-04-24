@@ -38,7 +38,8 @@ from pydependence._core.module_imports_loader import (
 from pydependence._core.modules_resolver import ScopeResolvedImports
 from pydependence._core.modules_scope import (
     _find_modules, DuplicateModuleNamesError,
-    DuplicateModulePathsError, DuplicateModulesError, ModulesScope,
+    DuplicateModulePathsError, DuplicateModulesError, ModulesScope, UnreachableModeEnum,
+    UnreachableModuleError,
 )
 
 # ========================================================================= #
@@ -232,6 +233,7 @@ def test_find_modules_search_path(module_info):
         search_paths=[PKGS_ROOT],
         package_paths=None,
         tag="test",
+        unreachable_mode=UnreachableModeEnum.keep,
     )
     assert set(results.nodes) == (reachable | unreachable)
     assert set(results.edges) == edges_reachable
@@ -241,10 +243,19 @@ def test_find_modules_search_path(module_info):
         search_paths=[PKGS_ROOT],
         package_paths=None,
         tag="test",
-        reachable_only=True,
+        unreachable_mode=UnreachableModeEnum.skip,
     )
     assert set(results.nodes) == reachable
     assert set(results.edges) == edges_reachable
+
+    # error if unreachable
+    with pytest.raises(UnreachableModuleError, match="Unreachable module found: A.a4.a4i from root: A"):
+        _find_modules(
+            search_paths=[PKGS_ROOT],
+            package_paths=None,
+            tag="test",
+            unreachable_mode=UnreachableModeEnum.error,
+        )
 
     # load missing
     with pytest.raises(FileNotFoundError):
@@ -252,6 +263,7 @@ def test_find_modules_search_path(module_info):
             search_paths=[PKGS_ROOT / 'THIS_DOES_NOT_EXIST'],
             package_paths=None,
             tag="test",
+            unreachable_mode=UnreachableModeEnum.keep,
         )
 
     # load file
@@ -261,6 +273,7 @@ def test_find_modules_search_path(module_info):
             search_paths=[PKG_AST_TEST],
             package_paths=None,
             tag="test",
+            unreachable_mode=UnreachableModeEnum.keep,
         )
 
     # load subdir
@@ -268,6 +281,7 @@ def test_find_modules_search_path(module_info):
         search_paths=[PKG_A],
         package_paths=None,
         tag="test",
+        unreachable_mode=UnreachableModeEnum.keep,
     )
     assert set(results.nodes) == {'a1', 'a2', 'a3', 'a3.a3i', 'a4.a4i'}
 
@@ -277,6 +291,7 @@ def test_find_modules_search_path(module_info):
             search_paths=[PKGS_ROOT, PKGS_ROOT],
             package_paths=None,
             tag="test",
+            unreachable_mode=UnreachableModeEnum.keep,
         )
 
 
@@ -297,6 +312,7 @@ def test_find_modules_pkg_path():
         search_paths=None,
         package_paths=[PKG_A],
         tag="test",
+        unreachable_mode=UnreachableModeEnum.keep,
     )
     assert set(results.nodes) == (reachable_a | unreachable_a)
 
@@ -305,15 +321,25 @@ def test_find_modules_pkg_path():
         search_paths=None,
         package_paths=[PKG_A],
         tag="test",
-        reachable_only=True,
+        unreachable_mode=UnreachableModeEnum.skip,
     )
     assert set(results.nodes) == reachable_a
+
+    # error if unreachable
+    with pytest.raises(UnreachableModuleError, match="Unreachable module found: A.a4.a4i from root: A"):
+        _find_modules(
+            search_paths=None,
+            package_paths=[PKG_A],
+            tag="test",
+            unreachable_mode=UnreachableModeEnum.error,
+        )
 
     # load all
     results = _find_modules(
         search_paths=None,
         package_paths=[PKG_B],
         tag="test",
+        unreachable_mode=UnreachableModeEnum.keep,
     )
     assert set(results.nodes) == {'B', 'B.b1', 'B.b2'}
 
@@ -321,6 +347,7 @@ def test_find_modules_pkg_path():
         search_paths=None,
         package_paths=[PKG_C],
         tag="test",
+        unreachable_mode=UnreachableModeEnum.keep,
     )
     assert set(results.nodes) == {'C'}
 
@@ -330,6 +357,7 @@ def test_find_modules_pkg_path():
             search_paths=None,
             package_paths=[PKGS_ROOT / 'THIS_DOES_NOT_EXIST.py'],
             tag="test",
+            unreachable_mode=UnreachableModeEnum.keep,
         )
 
     # load conflicting modules -- reference same files but different search paths
@@ -338,6 +366,7 @@ def test_find_modules_pkg_path():
             search_paths=None,
             package_paths=[PKG_A, PKG_A / 'a1.py'],
             tag="test",
+            unreachable_mode=UnreachableModeEnum.keep,
         )
 
 
@@ -354,17 +383,20 @@ def test_modules_scope():
     modules_all = modules_a | modules_b | modules_c | {"t_ast_parser"}
 
     scope = ModulesScope()
-    scope.add_modules_from_package_path(PKG_A)
+    scope.add_modules_from_package_path(PKG_A, unreachable_mode=UnreachableModeEnum.keep)
     assert set(scope.iter_modules()) == modules_a
     # this should not edit the original if it fails
     with pytest.raises(DuplicateModulePathsError):
-        scope.add_modules_from_package_path(PKG_A / 'a1.py')
+        scope.add_modules_from_package_path(PKG_A / 'a1.py', unreachable_mode=UnreachableModeEnum.keep)
     with pytest.raises(DuplicateModulePathsError):
-        scope.add_modules_from_package_path(PKG_A)
+        scope.add_modules_from_package_path(PKG_A, unreachable_mode=UnreachableModeEnum.keep)
     assert set(scope.iter_modules()) == modules_a
+    # handle unreachable
+    with pytest.raises(UnreachableModuleError):
+        scope.add_modules_from_package_path(PKG_A)
 
     scope = ModulesScope()
-    scope.add_modules_from_search_path(PKGS_ROOT)
+    scope.add_modules_from_search_path(PKGS_ROOT, unreachable_mode=UnreachableModeEnum.keep)
     assert set(scope.iter_modules()) == modules_all
 
     scope = ModulesScope()
@@ -375,12 +407,16 @@ def test_modules_scope():
 
     # merge scopes & check subsets
     scope_all = ModulesScope()
-    scope_all.add_modules_from_search_path(PKGS_ROOT)
+    scope_all.add_modules_from_search_path(PKGS_ROOT, unreachable_mode=UnreachableModeEnum.keep)
     assert set(scope_all.iter_modules()) == modules_all
+    with pytest.raises(UnreachableModuleError):
+        scope_all.add_modules_from_search_path(PKGS_ROOT)
 
     scope_a = ModulesScope()
-    scope_a.add_modules_from_package_path(PKG_A)
+    scope_a.add_modules_from_package_path(PKG_A, unreachable_mode=UnreachableModeEnum.keep)
     assert set(scope_a.iter_modules()) == modules_a
+    with pytest.raises(UnreachableModuleError):
+        scope_a.add_modules_from_package_path(PKG_A)
 
     scope_b = ModulesScope()
     scope_b.add_modules_from_package_path(PKG_B)
@@ -445,7 +481,7 @@ def test_error_instance_of():
 
 def test_resolve_scope():
     scope_ast = ModulesScope()
-    scope_ast = scope_ast.add_modules_from_package_path(PKG_AST_TEST)
+    scope_ast.add_modules_from_package_path(PKG_AST_TEST)
 
     resolved = ScopeResolvedImports.from_scope(scope=scope_ast)
     assert resolved._get_imports_sources_counts() == {
@@ -466,6 +502,18 @@ def test_resolve_scope():
         'foo.bar': {'t_ast_parser': 1},
         'package': {'t_ast_parser': 1},
     }
+
+
+def test_resolve_across_scopes():
+    scope_all = ModulesScope()
+    scope_all.add_modules_from_package_path(package_path=PKG_A, unreachable_mode=UnreachableModeEnum.keep)
+    scope_all.add_modules_from_package_path(package_path=PKG_B)
+    scope_all.add_modules_from_package_path(package_path=PKG_C)
+
+    with pytest.raises(UnreachableModuleError):
+        scope_all.add_modules_from_package_path(package_path=PKG_A)
+
+    # subscope
 
 
 # ========================================================================= #
