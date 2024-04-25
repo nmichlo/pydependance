@@ -21,14 +21,12 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE  #
 # SOFTWARE.                                                                      #
 # ============================================================================== #
-import typing
 from pathlib import Path
-from typing import Union
+from typing import List, Union
 
-# never actually imported at runtime, but used for type hints in IDEs
-if typing.TYPE_CHECKING:
-    from tomlkit import TOMLDocument
-
+import tomlkit
+import tomlkit.items
+import tomlkit.toml_document
 
 # ========================================================================= #
 # AST IMPORT PARSER                                                         #
@@ -73,7 +71,7 @@ def assert_valid_import_name(import_: str) -> str:
 # ========================================================================= #
 
 
-def apply_root_to_path_str(root: Union[str, Path], path: Union[str, Path]) -> str:
+def apply_root_to_path_str(root: "Union[str, Path]", path: "Union[str, Path]") -> str:
     root = Path(root)
     path = Path(path)
     if not root.is_absolute():
@@ -90,10 +88,9 @@ def apply_root_to_path_str(root: Union[str, Path], path: Union[str, Path]) -> st
 # ========================================================================= #
 
 
-def load_toml_document(path: Union[str, Path]) -> "TOMLDocument":
-    import tomlkit
-    from tomlkit import TOMLDocument
-
+def load_toml_document(
+    path: "Union[str, Path]",
+) -> "tomlkit.toml_document.TOMLDocument":
     path = Path(path)
     if not path.name.endswith(".toml"):
         raise ValueError(f"path is not a .toml file: {path}")
@@ -101,8 +98,62 @@ def load_toml_document(path: Union[str, Path]) -> "TOMLDocument":
         raise FileNotFoundError(f"path is not a file: {path}")
     with open(path) as fp:
         toml = tomlkit.load(fp)
-        assert isinstance(toml, TOMLDocument), f"got {type(toml)}, not TOMLDocument"
+        assert isinstance(
+            toml, tomlkit.toml_document.TOMLDocument
+        ), f"got {type(toml)}, not TOMLDocument"
     return toml
+
+
+# ========================================================================= #
+# WRITE                                                                     #
+# ========================================================================= #
+
+
+def txt_file_dump(
+    *,
+    file: "Union[str, Path]",
+    contents: "str",
+):
+    # write
+    with open(file, "w") as fp:
+        fp.write(contents)
+        if not contents.endswith("\n"):
+            fp.write("\n")
+
+
+def toml_file_replace_array(
+    *,
+    file: "Union[str, Path]",
+    keys: "List[str]",
+    array: "tomlkit.items.Array",
+):
+    assert isinstance(
+        array, tomlkit.items.Array
+    ), f"array must be a tomlkit Array, got: {type(array)}"
+
+    # load file
+    file = Path(file)
+    assert file.is_absolute(), f"file must be an absolute path, got: {file}"
+    toml = load_toml_document(file)
+
+    # split parent keys from array key
+    (*parent_keys, array_key) = keys
+
+    # add parent sections if missing
+    parent = toml
+    for i, k in enumerate(parent_keys):
+        section = parent.setdefault(k, {})
+        assert isinstance(section, tomlkit.items.Table)
+
+    # set array
+    if array_key in parent:
+        old_array = parent[array_key]
+        assert isinstance(old_array, tomlkit.items.Array)
+    parent[array_key] = array
+
+    # write
+    with open(file, "w") as fp:
+        tomlkit.dump(toml, fp)
 
 
 # ========================================================================= #

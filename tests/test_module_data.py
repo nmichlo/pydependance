@@ -810,14 +810,14 @@ def test_requirement_mapping():
     assert m("asdf.fdsa") == "ALT_glob_asdf"  # take root
 
 
-def test_requirements_list_generation():
-    scope_all = ModulesScope().add_modules_from_search_path(
-        PKGS_ROOT, unreachable_mode=UnreachableModeEnum.keep
-    )
-    scope_a = scope_all.get_restricted_scope(imports=["A"])
+# ========================================================================= #
+# TESTS - REQUIREMENT GENERATION                                            #
+# ========================================================================= #
 
-    # make mapper
-    mapper = RequirementsMapper(
+
+@pytest.fixture
+def mapper():
+    return RequirementsMapper(
         env_matchers={
             "default": [
                 ReqMatcher("glob_B", ImportMatcherGlob("B.*")),
@@ -835,6 +835,13 @@ def test_requirements_list_generation():
             ],
         }
     )
+
+
+def test_requirements_list_generation(mapper: RequirementsMapper):
+    scope_all = ModulesScope().add_modules_from_search_path(
+        PKGS_ROOT, unreachable_mode=UnreachableModeEnum.keep
+    )
+    scope_a = scope_all.get_restricted_scope(imports=["A"])
 
     # >>> SCOPE A <<< #
 
@@ -931,19 +938,236 @@ def test_requirements_list_generation():
         ("sys", ["t_ast_parser"]),
     ]
 
+    imports = scope_all.resolve_imports(
+        exclude_in_search_space=True,
+        exclude_builtins=True,
+        visit_lazy=False,
+    )
+    mapped = mapper.generate_requirements(imports, requirements_env="asdf")
+    assert mapped._get_debug_struct() == [
+        ("foo", ["t_ast_parser"]),
+        ("glob_extern", ["A.a1", "A.a2", "A.a3.a3i", "A.a4.a4i", "C"]),
+        ("package", ["t_ast_parser"]),
+    ]
+
 
 # ========================================================================= #
-# TESTS - REQUIREMENT GENERATION                                            #
+# TESTS - REQUIREMENT WRITING                                               #
 # ========================================================================= #
 
 
-# def test_requirement_generation():
+def test_requirements_txt_gen(mapper: RequirementsMapper):
+    scope_all = ModulesScope().add_modules_from_search_path(
+        PKGS_ROOT, unreachable_mode=UnreachableModeEnum.keep
+    )
 
-# generate requirements list
-# 1. resolve and filter
-# 2. map to requirements (make sure to keep and merge original sources)
-# 3. filter requirements again
-# 4. generate requirements list
+    # >>> GENERATE REQUIREMENTS <<< #
+
+    imports = scope_all.resolve_imports(
+        start_scope=None,
+        exclude_in_search_space=True,
+        exclude_builtins=True,
+        exclude_unvisited=True,
+        visit_lazy=False,
+    )
+    mapped = mapper.generate_requirements(
+        imports,
+        requirements_env="asdf",
+    )
+
+    # >>> OUTPUT REQUIREMENTS <<< #
+
+    assert mapped.as_requirements_txt(
+        notice=False,
+        sources=False,
+        sources_compact=True,
+        sources_roots=True,
+        indent_size=4,
+    ) == ("foo\n" "glob_extern\n" "package\n")
+
+    assert mapped.as_requirements_txt(
+        notice=True,
+        sources=False,
+        sources_compact=True,
+        sources_roots=True,
+        indent_size=4,
+    ) == (
+        "[AUTOGEN] by pydependence **DO NOT EDIT** [AUTOGEN]\n"
+        "foo\n"
+        "glob_extern\n"
+        "package\n"
+    )
+
+    assert mapped.as_requirements_txt(
+        notice=False,
+        sources=True,
+        sources_compact=True,
+        sources_roots=True,
+        indent_size=4,
+    ) == ("foo # t_ast_parser\n" "glob_extern # A, C\n" "package # t_ast_parser\n")
+
+    assert mapped.as_requirements_txt(
+        notice=False,
+        sources=True,
+        sources_compact=True,
+        sources_roots=False,
+        indent_size=4,
+    ) == (
+        "foo # t_ast_parser\n"
+        "glob_extern # A.a1, A.a2, A.a3.a3i, A.a4.a4i, C\n"
+        "package # t_ast_parser\n"
+    )
+
+    assert mapped.as_requirements_txt(
+        notice=False,
+        sources=True,
+        sources_compact=False,
+        sources_roots=True,
+        indent_size=4,
+    ) == (
+        "foo\n"
+        "    # ← t_ast_parser\n"
+        "glob_extern\n"
+        "    # ← A\n"
+        "    # ← C\n"
+        "package\n"
+        "    # ← t_ast_parser\n"
+    )
+
+    assert mapped.as_requirements_txt(
+        notice=False,
+        sources=True,
+        sources_compact=False,
+        sources_roots=False,
+        indent_size=4,
+    ) == (
+        "foo\n"
+        "    # ← t_ast_parser\n"
+        "glob_extern\n"
+        "    # ← A.a1\n"
+        "    # ← A.a2\n"
+        "    # ← A.a3.a3i\n"
+        "    # ← A.a4.a4i\n"
+        "    # ← C\n"
+        "package\n"
+        "    # ← t_ast_parser\n"
+    )
+
+
+def test_toml_array_gen(mapper: RequirementsMapper):
+    scope_all = ModulesScope().add_modules_from_search_path(
+        PKGS_ROOT, unreachable_mode=UnreachableModeEnum.keep
+    )
+
+    # >>> GENERATE REQUIREMENTS <<< #
+
+    imports = scope_all.resolve_imports(
+        start_scope=None,
+        exclude_in_search_space=True,
+        exclude_builtins=True,
+        exclude_unvisited=True,
+        visit_lazy=False,
+    )
+    mapped = mapper.generate_requirements(
+        imports,
+        requirements_env="asdf",
+    )
+
+    # >>> OUTPUT REQUIREMENTS <<< #
+
+    assert mapped.as_toml_array(
+        notice=False,
+        sources=False,
+        sources_compact=True,
+        sources_roots=True,
+        indent_size=4,
+    ).as_string() == (
+        "[\n" '    "foo",\n' '    "glob_extern",\n' '    "package",\n' "]"
+    )
+
+    assert mapped.as_toml_array(
+        notice=True,
+        sources=False,
+        sources_compact=True,
+        sources_roots=True,
+        indent_size=4,
+    ).as_string() == (
+        "[\n"
+        "    # [AUTOGEN] by pydependence **DO NOT EDIT** [AUTOGEN]\n"
+        '    "foo",\n'
+        '    "glob_extern",\n'
+        '    "package",\n'
+        "]"
+    )
+
+    assert mapped.as_toml_array(
+        notice=False,
+        sources=True,
+        sources_compact=True,
+        sources_roots=True,
+        indent_size=4,
+    ).as_string() == (
+        "[\n"
+        '    "foo", # t_ast_parser\n'
+        '    "glob_extern", # A, C\n'
+        '    "package", # t_ast_parser\n'
+        "]"
+    )
+
+    assert mapped.as_toml_array(
+        notice=False,
+        sources=True,
+        sources_compact=True,
+        sources_roots=False,
+        indent_size=4,
+    ).as_string() == (
+        "[\n"
+        '    "foo", # t_ast_parser\n'
+        '    "glob_extern", # A.a1, A.a2, A.a3.a3i, A.a4.a4i, C\n'
+        '    "package", # t_ast_parser\n'
+        "]"
+    )
+
+    # NOTE: bug in tomlkit prevents indents from being applied to comments when array is not in a table?
+    assert mapped.as_toml_array(
+        notice=False,
+        sources=True,
+        sources_compact=False,
+        sources_roots=True,
+        indent_size=4,
+    ).as_string() == (
+        "[\n"
+        '    "foo",\n'
+        "    # ← t_ast_parser\n"
+        '    "glob_extern",\n'
+        "    # ← A\n"
+        "    # ← C\n"
+        '    "package",\n'
+        "    # ← t_ast_parser\n"
+        "]"
+    )
+
+    # NOTE: bug in tomlkit prevents indents from being applied to comments when array is not in a table?
+    assert mapped.as_toml_array(
+        notice=False,
+        sources=True,
+        sources_compact=False,
+        sources_roots=False,
+        indent_size=4,
+    ).as_string() == (
+        "[\n"
+        '    "foo",\n'
+        "    # ← t_ast_parser\n"
+        '    "glob_extern",\n'
+        "    # ← A.a1\n"
+        "    # ← A.a2\n"
+        "    # ← A.a3.a3i\n"
+        "    # ← A.a4.a4i\n"
+        "    # ← C\n"
+        '    "package",\n'
+        "    # ← t_ast_parser\n"
+        "]"
+    )
 
 
 # ========================================================================= #
