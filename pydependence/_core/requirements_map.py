@@ -25,11 +25,14 @@ import dataclasses
 import functools
 import warnings
 from collections import defaultdict
-from typing import Dict, List, NamedTuple, Optional, Set, Tuple, Union
+from typing import TYPE_CHECKING, Dict, List, NamedTuple, Optional, Set, Tuple, Union
 
 from pydependence._core.builtin import BUILTIN_MODULE_NAMES
 from pydependence._core.module_imports_ast import LocImportInfo
-from pydependence._core.modules_scope import ModulesScope
+
+if TYPE_CHECKING:
+    from pydependence._core.modules_scope import ModulesScope
+
 
 # The version matching env
 DEFAULT_REQUIREMENTS_ENV = "default"
@@ -48,7 +51,7 @@ class ImportMatcherBase:
 
 class ImportMatcherScope(ImportMatcherBase):
 
-    def __init__(self, scope: ModulesScope):
+    def __init__(self, scope: "ModulesScope"):
         self.scope = scope
 
     def match(self, import_: str) -> bool:
@@ -267,7 +270,7 @@ class RequirementsMapper:
         # shallow copy
         return {k: dict(v) for k, v in requirements.items()}
 
-    def generate_requirements_list(
+    def generate_requirements(
         self,
         imports: "List[LocImportInfo]",
         *,
@@ -303,29 +306,6 @@ class RequirementsMapper:
             output_reqs.append(out_req)
         # done!
         return MappedRequirements(requirements=output_reqs)
-
-    def generate_requirements(
-        self,
-        scope: "ModulesScope",
-        *,
-        # * resolve
-        start_scope: "Optional[ModulesScope]" = None,
-        visit_lazy: bool = True,
-        exclude_unvisited: bool = True,
-        exclude_in_search_space: bool = True,
-        exclude_builtins: bool = True,
-        # * mapping
-        requirements_env: Optional[str] = None,
-    ) -> "MappedRequirements":
-        return scope.generate_requirements(
-            start_scope=start_scope,
-            visit_lazy=visit_lazy,
-            exclude_unvisited=exclude_unvisited,
-            exclude_in_search_space=exclude_in_search_space,
-            exclude_builtins=exclude_builtins,
-            requirements_mapper=self,
-            requirements_env=requirements_env,
-        )
 
 
 # ========================================================================= #

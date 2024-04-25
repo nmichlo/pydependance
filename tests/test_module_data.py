@@ -836,46 +836,28 @@ def test_requirements_list_generation():
         }
     )
 
-    # generate requirements
-    # - order is important!
-    imports = scope_a.resolve_imports().get_imports()
-    mapped = mapper.generate_requirements_list(imports=imports)
+    # >>> SCOPE A <<< #
+
+    imports = scope_a.resolve_imports()
+
+    mapped = mapper.generate_requirements(imports)
     assert mapped._get_debug_struct() == [
         ("extern_a4i", ["A.a4.a4i"]),
         ("glob_B", ["A.a2", "A.a3.a3i", "A.a4.a4i"]),
         ("glob_extern", ["A.a1", "A.a2", "A.a3.a3i"]),
     ]
 
-    # generate requirements (compact)
-    # - order is important!
-    assert scope_a.generate_requirements(
-        requirements_mapper=mapper
-    )._get_debug_struct() == [
-        ("extern_a4i", ["A.a4.a4i"]),
-        ("glob_B", ["A.a2", "A.a3.a3i", "A.a4.a4i"]),
-        ("glob_extern", ["A.a1", "A.a2", "A.a3.a3i"]),
-    ]
-    assert mapper.generate_requirements(scope_a)._get_debug_struct() == [
-        ("extern_a4i", ["A.a4.a4i"]),
-        ("glob_B", ["A.a2", "A.a3.a3i", "A.a4.a4i"]),
-        ("glob_extern", ["A.a1", "A.a2", "A.a3.a3i"]),
-    ]
-
-    # ----- #
-
-    # generate requirements
-    mapped = mapper.generate_requirements_list(imports=imports, requirements_env="asdf")
+    mapped = mapper.generate_requirements(imports, requirements_env="asdf")
     assert mapped._get_debug_struct() == [
         ("glob_B", ["A.a2", "A.a3.a3i", "A.a4.a4i"]),
         ("glob_extern", ["A.a1", "A.a2", "A.a3.a3i", "A.a4.a4i"]),
     ]
 
-    # resolve all imports
-    imports = scope_all.resolve_imports().get_imports()
+    # >>> SCOPE ALL <<< #
 
-    # generate requirements
-    # - order is important!
-    mapped = mapper.generate_requirements_list(imports=imports)
+    imports = scope_all.resolve_imports()
+
+    mapped = mapper.generate_requirements(imports)
     assert mapped._get_debug_struct() == [
         ("asdf", ["t_ast_parser"]),
         ("buzz", ["t_ast_parser"]),
@@ -885,8 +867,7 @@ def test_requirements_list_generation():
         ("package", ["t_ast_parser"]),
     ]
 
-    # generate requirements
-    mapped = mapper.generate_requirements_list(imports=imports, requirements_env="asdf")
+    mapped = mapper.generate_requirements(imports, requirements_env="asdf")
     assert mapped._get_debug_struct() == [
         ("asdf", ["t_ast_parser"]),
         ("buzz", ["t_ast_parser"]),
@@ -895,17 +876,18 @@ def test_requirements_list_generation():
         ("package", ["t_ast_parser"]),
     ]
 
-    # resolve all imports under scope_a
-    imports = scope_all.resolve_imports(start_scope=scope_a).get_imports()
-    mapped = mapper.generate_requirements_list(imports=imports, requirements_env="asdf")
+    # >>> SCOPE ALL, FROM SCOPE A <<< #
+
+    imports = scope_all.resolve_imports(start_scope=scope_a)
+    mapped = mapper.generate_requirements(imports, requirements_env="asdf")
     assert mapped._get_debug_struct() == [
         ("glob_extern", ["A.a1", "A.a2", "A.a3.a3i", "A.a4.a4i", "B.b1", "B.b2", "C"]),
     ]
 
     imports = scope_all.resolve_imports(
         start_scope=scope_a, exclude_in_search_space=False
-    ).get_imports()
-    mapped = mapper.generate_requirements_list(imports=imports, requirements_env="asdf")
+    )
+    mapped = mapper.generate_requirements(imports, requirements_env="asdf")
     assert mapped._get_debug_struct() == [
         ("A", ["A.a1", "A.a3.a3i"]),
         ("C", ["B.b2"]),
@@ -913,10 +895,12 @@ def test_requirements_list_generation():
         ("glob_extern", ["A.a1", "A.a2", "A.a3.a3i", "A.a4.a4i", "B.b1", "B.b2", "C"]),
     ]
 
+    # >>> SCOPE ALL, FILTERED <<< #
+
     imports = scope_all.resolve_imports(
         exclude_in_search_space=False, exclude_builtins=False
-    ).get_imports()
-    mapped = mapper.generate_requirements_list(imports=imports, requirements_env="asdf")
+    )
+    mapped = mapper.generate_requirements(imports, requirements_env="asdf")
     assert mapped._get_debug_struct() == [
         ("A", ["A.a1", "A.a3.a3i"]),
         ("C", ["B.b2"]),
@@ -933,8 +917,8 @@ def test_requirements_list_generation():
 
     imports = scope_all.resolve_imports(
         exclude_in_search_space=True, exclude_builtins=False
-    ).get_imports()
-    mapped = mapper.generate_requirements_list(imports=imports, requirements_env="asdf")
+    )
+    mapped = mapper.generate_requirements(imports, requirements_env="asdf")
     assert mapped._get_debug_struct() == [
         ("asdf", ["t_ast_parser"]),
         ("buzz", ["t_ast_parser"]),
