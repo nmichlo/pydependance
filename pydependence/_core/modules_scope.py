@@ -21,13 +21,12 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE  #
 # SOFTWARE.                                                                      #
 # ============================================================================== #
-import dataclasses
 import warnings
 from collections import defaultdict
 from enum import Enum
 from pathlib import Path
 from typing import (
-    DefaultDict,
+    TYPE_CHECKING,
     Dict,
     Iterable,
     Iterator,
@@ -37,19 +36,18 @@ from typing import (
     Sequence,
     Set,
     Tuple,
-    Union,
 )
 
 import networkx as nx
 
-from pydependence._core.builtin import BUILTIN_MODULE_NAMES
 from pydependence._core.module_data import ModuleMetadata
-from pydependence._core.module_imports_ast import LocImportInfo
-from pydependence._core.module_imports_loader import (
-    DEFAULT_MODULE_IMPORTS_LOADER,
-    ModuleImports,
-)
 from pydependence._core.utils import assert_valid_import_name
+
+if TYPE_CHECKING:
+    from pydependence._core.requirements_map import (
+        MappedRequirements,
+        RequirementsMapper,
+    )
 
 # ========================================================================= #
 # MODULE GRAPH                                                              #
@@ -358,6 +356,60 @@ class ModulesScope:
                 s._module_graph.remove_node(node)
         # done!
         return s
+
+    # ~=~=~ RESOLVE ~=~=~ #
+
+    def resolve_imports(
+        self,
+        *,
+        start_scope: "Optional[ModulesScope]" = None,
+        visit_lazy: bool = True,
+        exclude_unvisited: bool = True,  # not sure this actually works?
+        exclude_in_search_space: bool = True,
+        exclude_builtins: bool = True,
+    ):
+        from pydependence._core.modules_resolver import ScopeResolvedImports
+
+        resolved = ScopeResolvedImports.from_scope(
+            scope=self,
+            start_scope=start_scope,
+            visit_lazy=visit_lazy,
+        )
+        resolved = resolved.get_filtered(
+            exclude_unvisited=exclude_unvisited,
+            exclude_in_search_space=exclude_in_search_space,
+            exclude_builtins=exclude_builtins,
+        )
+        return resolved
+
+    def generate_requirements(
+        self,
+        *,
+        # * resolve
+        start_scope: "Optional[ModulesScope]" = None,
+        visit_lazy: bool = True,
+        exclude_unvisited: bool = True,
+        exclude_in_search_space: bool = True,
+        exclude_builtins: bool = True,
+        # * mapping
+        requirements_mapper: "Optional[RequirementsMapper]" = None,
+        requirements_env: Optional[str] = None,
+    ) -> "MappedRequirements":
+        if requirements_mapper is None:
+            from pydependence._core.requirements_map import RequirementsMapper
+
+            requirements_mapper = RequirementsMapper(env_matchers=[])
+        resolved = self.resolve_imports(
+            start_scope=start_scope,
+            visit_lazy=visit_lazy,
+            exclude_unvisited=exclude_unvisited,
+            exclude_in_search_space=exclude_in_search_space,
+            exclude_builtins=exclude_builtins,
+        )
+        mapped = requirements_mapper.generate_requirements_list(
+            imports=resolved.get_imports(), requirements_env=requirements_env
+        )
+        return mapped
 
 
 # ========================================================================= #

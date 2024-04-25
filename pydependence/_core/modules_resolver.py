@@ -24,7 +24,7 @@
 
 import warnings
 from collections import defaultdict
-from typing import Dict, Iterable, List, NamedTuple, Optional, Set
+from typing import Dict, Iterable, List, NamedTuple, Optional, Set, Tuple
 
 import networkx as nx
 
@@ -77,7 +77,7 @@ class _ImportsGraphEdgeData(NamedTuple):
 def _construct_module_import_graph(
     scope: "ModulesScope",
     *,
-    skip_lazy: bool,
+    visit_lazy: bool,
 ) -> "nx.DiGraph":
     """
     Supports same interface as `find_modules` but edges are instead constructed
@@ -102,7 +102,7 @@ def _construct_module_import_graph(
         )
         for imp, imports in node_imports.module_imports.items():
             # filter out lazy, or skip
-            if skip_lazy:
+            if not visit_lazy:
                 imports = [imp for imp in imports if not imp.is_lazy]
             # add edge
             if imports:
@@ -119,10 +119,6 @@ def _construct_module_import_graph(
 # ========================================================================= #
 
 
-ImportsDict = Dict[str, List[LocImportInfo]]
-ImportsSourcesLists = Dict[str, Dict[str, LocImportInfo]]
-
-
 class ScopeNotASubsetError(ValueError):
     pass
 
@@ -130,8 +126,8 @@ class ScopeNotASubsetError(ValueError):
 def _resolve_scope_imports(
     scope: "ModulesScope",
     start_scope: "Optional[ModulesScope]",
-    skip_lazy: bool,
-) -> "ImportsDict":
+    visit_lazy: bool,
+) -> "Tuple[List[LocImportInfo], Set[str]]":
     if start_scope is None:
         start_scope = scope
     if not scope.is_scope_subset(start_scope):
@@ -140,21 +136,24 @@ def _resolve_scope_imports(
     # 1. construct
     # - if all imports are lazy, then we don't need to traverse them! (depending on mode)
     # - we have to filter BEFORE the bfs otherwise we will traverse wrong nodes.
-    import_graph = _construct_module_import_graph(scope=scope, skip_lazy=skip_lazy)
+    import_graph = _construct_module_import_graph(scope=scope, visit_lazy=visit_lazy)
 
     # 2. now resolve imports from the starting point!
     # - dfs along edges to get all imports MUST do ALL edges
     # - this is why we don't use `dfs_edges` which visits nodes, and may skip edges.
     # - each edge contains all imports along that edge, these should
     #   be added to the set of imports so that we can track all imports
-    imports = defaultdict(set)
+    visited = set()
+    imports = []
     for src, dst in nx.edge_dfs(import_graph, source=start_scope.iter_modules()):
         edge_data = _ImportsGraphEdgeData.from_graph_edge(import_graph, src, dst)
-        imports[dst].update(edge_data.imports)
-    imports = {k: list(v) for k, v in imports.items()}
+        imports.extend(edge_data.imports)
+        visited.update([src, dst])
 
     # 3. convert to datatype
-    return imports
+    # NOTE: ideally later on we would group these imports by `dst` or `target`. It is
+    #       just easier to work with them this way for now.
+    return imports, visited
 
 
 class ScopeResolvedImports:
@@ -163,76 +162,74 @@ class ScopeResolvedImports:
         self,
         scope: "ModulesScope",
         start_scope: "ModulesScope",
-        imports: "ImportsDict",
+        imports: "List[LocImportInfo]",
+        visited: "Set[str]",
     ):
-        self.__scope = scope
-        self.__start_scope = start_scope
-        self.__imports = imports
+        self._scope = scope
+        self._start_scope = start_scope
+        self._imports = imports
+        self._visited = visited  # visited modules
 
     @classmethod
     def from_scope(
         cls,
         scope: "ModulesScope",
         start_scope: "Optional[ModulesScope]" = None,
-        skip_lazy: bool = False,
+        visit_lazy: bool = True,
     ):
         if start_scope is None:
             start_scope = scope
-        imports = _resolve_scope_imports(
+
+        imports, visited = _resolve_scope_imports(
             scope=scope,
             start_scope=start_scope,
-            skip_lazy=skip_lazy,
+            visit_lazy=visit_lazy,
         )
+
         return cls(
             scope=scope,
             start_scope=start_scope,
             imports=imports,
+            visited=visited,
         )
 
     def get_filtered(
         self,
+        exclude_unvisited: bool = True,
         exclude_in_search_space: bool = True,
         exclude_builtins: bool = True,
     ) -> "ScopeResolvedImports":
-        def _keep(k):
-            if exclude_builtins and k in BUILTIN_MODULE_NAMES:
+
+        def _keep(imp: LocImportInfo) -> bool:
+            if exclude_builtins and imp.target in BUILTIN_MODULE_NAMES:
                 return False
-            if exclude_in_search_space and self.__scope.has_module(k):
+            if exclude_in_search_space and self._scope.has_module(imp.target):
+                return False
+            if exclude_unvisited and imp.source_name not in self._visited:
                 return False
             return True
 
-        # filter
-        new_imports = defaultdict(list)
-        for k, v in self.__imports.items():
-            if _keep(k):
-                # v = [imp for imp in v if _keep(imp.source_module_info.name)]
-                new_imports[k] = v
-        # return
-        return ScopeResolvedImports(
-            scope=self.__scope,
-            start_scope=self.__start_scope,
-            imports=dict(new_imports),
+        return self.__class__(
+            scope=self._scope,
+            start_scope=self._start_scope,
+            imports=[imp for imp in self._imports if _keep(imp)],
+            visited=set(self._visited),
         )
 
-    def get_imports(self) -> ImportsDict:
-        return {k: list(v) for k, v in self.__imports.items()}
+    def get_imports(self) -> "List[LocImportInfo]":
+        return list(self._imports)
 
-    def get_imports_sources(self) -> ImportsSourcesLists:
-        # TODO: should this be the tagged name instead?
-        _imports = defaultdict(lambda: defaultdict(list))
-        for imp, imp_sources in self.__imports.items():
-            for i in imp_sources:
-                _imports[imp][i.source_module_info.name].append(i)
-        return {k: dict(v) for k, v in _imports.items()}
+    # ~=~=~ debug ~=~=~ #
 
-    def _get_imports_sources_counts(self) -> Dict[str, Dict[str, int]]:
+    def _get_targets_sources_counts(self) -> "Dict[str, Dict[str, int]]":
+        # used for debugging / testing
+        trg_src_imps = defaultdict(lambda: defaultdict(list))
+        for imp in self._imports:
+            trg_src_imps[imp.target][imp.source_name].append(imp)
         return {
-            k: {kk: len(vv) for kk, vv in v.items()}
-            for k, v in self.get_imports_sources().items()
+            trg: {src: len(imps) for src, imps in src_imps.items()}
+            for trg, src_imps in trg_src_imps.items()
         }
-
-    def _get_imports_sources_names(self) -> Dict[str, Set[str]]:
-        return {k: set(v.keys()) for k, v in self.get_imports_sources().items()}
 
 
 # ========================================================================= #

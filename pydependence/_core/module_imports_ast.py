@@ -142,7 +142,7 @@ class ImportSourceEnum(str, Enum):
 class LocImportInfo(NamedTuple):
     # source, e.g. import statement or type check or lazy plugin
     source_module_info: ModuleMetadata
-    source: ImportSourceEnum
+    source_type: ImportSourceEnum
     # target
     target: str
     is_lazy: bool
@@ -152,6 +152,10 @@ class LocImportInfo(NamedTuple):
     stack_type_names: Tuple[str, ...]
     # relative import
     is_relative: bool
+
+    @property
+    def source_name(self) -> str:
+        return self.source_module_info.name
 
     @property
     def tagged_target(self) -> str:
@@ -187,7 +191,7 @@ class _AstImportsCollector(ast.NodeVisitor):
         self,
         node: ast.AST,
         target: str,
-        source: ImportSourceEnum,
+        source_type: ImportSourceEnum,
         is_lazy: "Optional[bool]" = None,
         is_relative: bool = False,
     ):
@@ -197,7 +201,7 @@ class _AstImportsCollector(ast.NodeVisitor):
             is_lazy=self._stack_is_lazy[-1] if (is_lazy is None) else is_lazy,
             lineno=node.lineno,
             col_offset=node.col_offset,
-            source=source,
+            source_type=source_type,
             stack_type_names=tuple(self._stack_ast_kind),
             is_relative=is_relative,
         )
@@ -242,7 +246,7 @@ class _AstImportsCollector(ast.NodeVisitor):
             self._push_current_import(
                 node=node,
                 target=alias.name,
-                source=ImportSourceEnum.import_,
+                source_type=ImportSourceEnum.import_,
             )
 
     def visit_ImportFrom(self, node: ast.ImportFrom):
@@ -263,7 +267,7 @@ class _AstImportsCollector(ast.NodeVisitor):
         self._push_current_import(
             node=node,
             target=target,
-            source=ImportSourceEnum.import_from,
+            source_type=ImportSourceEnum.import_from,
             is_relative=is_relative,
         )
 
@@ -353,7 +357,7 @@ class _AstImportsCollector(ast.NodeVisitor):
         self._push_current_import(
             node=node,
             target=import_,
-            source=ImportSourceEnum.lazy_plugin,
+            source_type=ImportSourceEnum.lazy_plugin,
             is_lazy=True,
         )
 

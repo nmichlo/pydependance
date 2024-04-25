@@ -95,7 +95,7 @@ class _Output(pydantic.BaseModel, extra="forbid"):
     # resolve
     scope: str
     start_scope: Optional[str] = None
-    skip_lazy: bool = False
+    visit_lazy: bool = True
 
     # env
     env: str = DEFAULT_REQUIREMENTS_ENV

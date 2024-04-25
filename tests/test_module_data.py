@@ -28,6 +28,7 @@ import pytest
 
 from pydependence._core.module_data import ModuleMetadata
 from pydependence._core.module_imports_ast import (
+    ImportSourceEnum,
     LocImportInfo,
     load_imports_from_module_info,
 )
@@ -52,6 +53,7 @@ from pydependence._core.requirements_map import (
     ImportMatcherBase,
     ImportMatcherGlob,
     ImportMatcherScope,
+    ReqMatcher,
     RequirementsMapper,
 )
 
@@ -94,7 +96,7 @@ def test_get_module_imports(module_info):
         "asdf.fdsa": [
             LocImportInfo(
                 source_module_info=module_info,
-                source="import_from",
+                source_type=ImportSourceEnum.import_from,
                 target="asdf.fdsa",
                 is_lazy=True,
                 lineno=13,
@@ -106,7 +108,7 @@ def test_get_module_imports(module_info):
         "buzz": [
             LocImportInfo(
                 source_module_info=module_info,
-                source="lazy_plugin",
+                source_type=ImportSourceEnum.lazy_plugin,
                 target="buzz",
                 is_lazy=True,
                 lineno=16,
@@ -118,7 +120,7 @@ def test_get_module_imports(module_info):
         "foo.bar": [
             LocImportInfo(
                 source_module_info=module_info,
-                source="import_from",
+                source_type=ImportSourceEnum.import_from,
                 target="foo.bar",
                 is_lazy=False,
                 lineno=4,
@@ -130,7 +132,7 @@ def test_get_module_imports(module_info):
         "json": [
             LocImportInfo(
                 source_module_info=module_info,
-                source="import_",
+                source_type=ImportSourceEnum.import_,
                 target="json",
                 is_lazy=True,
                 lineno=10,
@@ -142,7 +144,7 @@ def test_get_module_imports(module_info):
         "os": [
             LocImportInfo(
                 source_module_info=module_info,
-                source="import_",
+                source_type=ImportSourceEnum.import_,
                 target="os",
                 is_lazy=False,
                 lineno=1,
@@ -154,7 +156,7 @@ def test_get_module_imports(module_info):
         "sys": [
             LocImportInfo(
                 source_module_info=module_info,
-                source="import_from",
+                source_type=ImportSourceEnum.import_from,
                 target="sys",
                 is_lazy=False,
                 lineno=2,
@@ -164,7 +166,7 @@ def test_get_module_imports(module_info):
             ),
             LocImportInfo(
                 source_module_info=module_info,
-                source="import_",
+                source_type=ImportSourceEnum.import_,
                 target="sys",
                 is_lazy=True,
                 lineno=11,
@@ -176,7 +178,7 @@ def test_get_module_imports(module_info):
         "package": [
             LocImportInfo(
                 source_module_info=module_info,
-                source="import_from",
+                source_type=ImportSourceEnum.import_from,
                 target="package",
                 is_lazy=False,
                 lineno=6,
@@ -513,7 +515,7 @@ def test_resolve_scope():
     scope_ast.add_modules_from_package_path(PKG_AST_TEST)
 
     resolved = ScopeResolvedImports.from_scope(scope=scope_ast)
-    assert resolved._get_imports_sources_counts() == {
+    assert resolved._get_targets_sources_counts() == {
         "os": {"t_ast_parser": 1},
         "sys": {"t_ast_parser": 2},
         "foo.bar": {"t_ast_parser": 1},
@@ -524,8 +526,8 @@ def test_resolve_scope():
     }
 
     # lazy should be skipped, even if repeated
-    resolved = ScopeResolvedImports.from_scope(scope=scope_ast, skip_lazy=True)
-    assert resolved._get_imports_sources_counts() == {
+    resolved = ScopeResolvedImports.from_scope(scope=scope_ast, visit_lazy=False)
+    assert resolved._get_targets_sources_counts() == {
         "os": {"t_ast_parser": 1},
         "sys": {"t_ast_parser": 1},
         "foo.bar": {"t_ast_parser": 1},
@@ -553,7 +555,7 @@ def test_resolve_across_scopes():
     # >>> ALL <<< #
 
     resolved_all = ScopeResolvedImports.from_scope(scope=scope_all)
-    assert resolved_all._get_imports_sources_counts() == {
+    assert resolved_all._get_targets_sources_counts() == {
         "A.a2": {"A.a1": 1},
         "A.a4.a4i": {"A.a3.a3i": 1},
         "B.b1": {"A.a4.a4i": 1},
@@ -570,7 +572,7 @@ def test_resolve_across_scopes():
 
     # *NB* *NB* *NB* *NB* *NB* *NB* *NB*
     # e.g. this is how we can get all external deps for a project with multiple packages
-    assert resolved_all.get_filtered()._get_imports_sources_counts() == {
+    assert resolved_all.get_filtered()._get_targets_sources_counts() == {
         "extern_a1": {"A.a1": 1},
         "extern_a2": {"A.a2": 2},
         "extern_a3i": {"A.a3.a3i": 1},
@@ -583,7 +585,7 @@ def test_resolve_across_scopes():
     # >>> A <<< #
 
     resolved_a = ScopeResolvedImports.from_scope(scope=scope_a)
-    assert resolved_a._get_imports_sources_counts() == {
+    assert resolved_a._get_targets_sources_counts() == {
         "A.a2": {"A.a1": 1},
         "A.a4.a4i": {"A.a3.a3i": 1},
         "B.b1": {"A.a4.a4i": 1},
@@ -596,7 +598,7 @@ def test_resolve_across_scopes():
 
     # *NB* *NB* *NB* *NB* *NB* *NB* *NB*
     # e.g. this is how we can get external deps for the current package, and all its internal deps
-    assert resolved_a.get_filtered()._get_imports_sources_counts() == {
+    assert resolved_a.get_filtered()._get_targets_sources_counts() == {
         "B.b1": {"A.a4.a4i": 1},
         "B.b2": {"A.a2": 1, "A.a3.a3i": 1},
         "extern_a1": {"A.a1": 1},
@@ -608,7 +610,7 @@ def test_resolve_across_scopes():
     resolved_all_a = ScopeResolvedImports.from_scope(
         scope=scope_all, start_scope=scope_a
     )
-    assert resolved_all_a._get_imports_sources_counts() == {
+    assert resolved_all_a._get_targets_sources_counts() == {
         "A.a2": {"A.a1": 1},
         "A.a4.a4i": {"A.a3.a3i": 1},
         "B.b1": {"A.a4.a4i": 1},
@@ -624,7 +626,7 @@ def test_resolve_across_scopes():
     }
     # *NB* *NB* *NB* *NB* *NB* *NB* *NB*
     # e.g. this is how we can get external deps for the current package, resolved across the current project, WITHOUT internal deps
-    assert resolved_all_a.get_filtered()._get_imports_sources_counts() == {
+    assert resolved_all_a.get_filtered()._get_targets_sources_counts() == {
         "extern_a1": {"A.a1": 1},
         "extern_a2": {"A.a2": 2},
         "extern_a3i": {"A.a3.a3i": 1},
@@ -637,13 +639,13 @@ def test_resolve_across_scopes():
     # >>> B <<< #
 
     resolved_b = ScopeResolvedImports.from_scope(scope=scope_b)
-    assert resolved_b._get_imports_sources_counts() == {
+    assert resolved_b._get_targets_sources_counts() == {
         "B.b2": {"B.b1": 1},
         "C": {"B.b2": 2},
         "extern_b1": {"B.b1": 1},
         "extern_b2": {"B.b2": 1},
     }
-    assert resolved_b.get_filtered()._get_imports_sources_counts() == {
+    assert resolved_b.get_filtered()._get_targets_sources_counts() == {
         "C": {"B.b2": 2},
         "extern_b1": {"B.b1": 1},
         "extern_b2": {"B.b2": 1},
@@ -652,14 +654,14 @@ def test_resolve_across_scopes():
     resolved_all_b = ScopeResolvedImports.from_scope(
         scope=scope_all, start_scope=scope_b
     )
-    assert resolved_all_b._get_imports_sources_counts() == {
+    assert resolved_all_b._get_targets_sources_counts() == {
         "B.b2": {"B.b1": 1},
         "C": {"B.b2": 2},
         "extern_C": {"C": 1},
         "extern_b1": {"B.b1": 1},
         "extern_b2": {"B.b2": 1},
     }
-    assert resolved_all_b.get_filtered()._get_imports_sources_counts() == {
+    assert resolved_all_b.get_filtered()._get_targets_sources_counts() == {
         "extern_b1": {"B.b1": 1},
         "extern_b2": {"B.b2": 1},
         "extern_C": {"C": 1},
@@ -668,20 +670,20 @@ def test_resolve_across_scopes():
     # >>> C <<< #
 
     resolved_c = ScopeResolvedImports.from_scope(scope=scope_c)
-    assert resolved_c._get_imports_sources_counts() == {
+    assert resolved_c._get_targets_sources_counts() == {
         "extern_C": {"C": 1},  #
     }
-    assert resolved_c.get_filtered()._get_imports_sources_counts() == {
+    assert resolved_c.get_filtered()._get_targets_sources_counts() == {
         "extern_C": {"C": 1},
     }
 
     resolved_all_c = ScopeResolvedImports.from_scope(
         scope=scope_all, start_scope=scope_c
     )
-    assert resolved_all_c._get_imports_sources_counts() == {
+    assert resolved_all_c._get_targets_sources_counts() == {
         "extern_C": {"C": 1},  #
     }
-    assert resolved_all_c.get_filtered()._get_imports_sources_counts() == {
+    assert resolved_all_c.get_filtered()._get_targets_sources_counts() == {
         "extern_C": {"C": 1},
     }
 
@@ -757,8 +759,7 @@ def test_import_matchers():
 
 
 def test_requirement_mapping():
-    scope_all = ModulesScope()
-    scope_all.add_modules_from_search_path(
+    scope_all = ModulesScope().add_modules_from_search_path(
         PKGS_ROOT, unreachable_mode=UnreachableModeEnum.keep
     )
     scope_a = scope_all.get_restricted_scope(imports=["A"])
@@ -767,14 +768,18 @@ def test_requirement_mapping():
     mapper = RequirementsMapper(
         env_matchers={
             "default": [
-                ("glob_Aa3", ImportMatcherGlob("A.a3.*")),
-                ("glob_Aa4", ImportMatcherGlob("A.a4.a4i")),
-                ("glob_A", ImportMatcherGlob("A.*")),
-                ("glob_Aa2", ImportMatcherGlob("A.a2.*")),
-                ("scope_b", ImportMatcherScope(scope=scope_b)),
-                ("scope_a", ImportMatcherScope(scope=scope_a)),
-                ("scope_all", ImportMatcherScope(scope=scope_all)),
-            ]
+                ReqMatcher("glob_Aa3", ImportMatcherGlob("A.a3.*")),
+                ReqMatcher("glob_Aa4", ImportMatcherGlob("A.a4.a4i")),
+                ReqMatcher("glob_A", ImportMatcherGlob("A.*")),
+                ReqMatcher("glob_Aa2", ImportMatcherGlob("A.a2.*")),
+                ReqMatcher("scope_b", ImportMatcherScope(scope=scope_b)),
+                ReqMatcher("scope_a", ImportMatcherScope(scope=scope_a)),
+                ReqMatcher("scope_all", ImportMatcherScope(scope=scope_all)),
+            ],
+            "asdf": [
+                ReqMatcher("ALT_glob_Aa3", ImportMatcherGlob("A.a3.*")),
+                ReqMatcher("ALT_glob_asdf", ImportMatcherGlob("asdf.*")),
+            ],
         }
     )
 
@@ -790,6 +795,171 @@ def test_requirement_mapping():
     assert m("A.a1") == "glob_A"  # != scope_a
     assert m("C") == "scope_all"
     assert m("asdf.fdsa") == "asdf"  # take root
+
+    # test alt
+    m = lambda x: mapper.map_import_to_requirement(x, requirements_env="asdf")
+    # in order:
+    assert m("A.a3.a3i") == "ALT_glob_Aa3"
+    assert m("A.a4") == "glob_A"
+    assert m("A.a4.a4i") == "glob_Aa4"
+    assert m("A.a1") == "glob_A"
+    assert m("A.a2") == "glob_A"  # != glob_Aa2
+    assert m("B.b1") == "scope_b"
+    assert m("A.a1") == "glob_A"  # != scope_a
+    assert m("C") == "scope_all"
+    assert m("asdf.fdsa") == "ALT_glob_asdf"  # take root
+
+
+def test_requirements_list_generation():
+    scope_all = ModulesScope().add_modules_from_search_path(
+        PKGS_ROOT, unreachable_mode=UnreachableModeEnum.keep
+    )
+    scope_a = scope_all.get_restricted_scope(imports=["A"])
+
+    # make mapper
+    mapper = RequirementsMapper(
+        env_matchers={
+            "default": [
+                ReqMatcher("glob_B", ImportMatcherGlob("B.*")),
+                ReqMatcher("glob_extern", ImportMatcherGlob("extern_a1.*")),
+                ReqMatcher("glob_extern", ImportMatcherGlob("extern_a2.*")),
+                ReqMatcher("glob_extern", ImportMatcherGlob("extern_a3i.*")),
+                ReqMatcher("glob_extern", ImportMatcherGlob("extern_b1.*")),
+                ReqMatcher("glob_extern", ImportMatcherGlob("extern_b2.*")),
+                ReqMatcher("glob_extern", ImportMatcherGlob("extern_C.*")),
+                # purposely wrong, correct is `extern_a4i`
+                ReqMatcher("glob_extern_WRONG", ImportMatcherGlob("extern_a4.*")),
+            ],
+            "asdf": [
+                ReqMatcher("glob_extern", ImportMatcherGlob("extern_a4i.*")),
+            ],
+        }
+    )
+
+    # generate requirements
+    # - order is important!
+    imports = scope_a.resolve_imports().get_imports()
+    mapped = mapper.generate_requirements_list(imports=imports)
+    assert mapped._get_debug_struct() == [
+        ("extern_a4i", ["A.a4.a4i"]),
+        ("glob_B", ["A.a2", "A.a3.a3i", "A.a4.a4i"]),
+        ("glob_extern", ["A.a1", "A.a2", "A.a3.a3i"]),
+    ]
+
+    # generate requirements (compact)
+    # - order is important!
+    assert scope_a.generate_requirements(
+        requirements_mapper=mapper
+    )._get_debug_struct() == [
+        ("extern_a4i", ["A.a4.a4i"]),
+        ("glob_B", ["A.a2", "A.a3.a3i", "A.a4.a4i"]),
+        ("glob_extern", ["A.a1", "A.a2", "A.a3.a3i"]),
+    ]
+    assert mapper.generate_requirements(scope_a)._get_debug_struct() == [
+        ("extern_a4i", ["A.a4.a4i"]),
+        ("glob_B", ["A.a2", "A.a3.a3i", "A.a4.a4i"]),
+        ("glob_extern", ["A.a1", "A.a2", "A.a3.a3i"]),
+    ]
+
+    # ----- #
+
+    # generate requirements
+    mapped = mapper.generate_requirements_list(imports=imports, requirements_env="asdf")
+    assert mapped._get_debug_struct() == [
+        ("glob_B", ["A.a2", "A.a3.a3i", "A.a4.a4i"]),
+        ("glob_extern", ["A.a1", "A.a2", "A.a3.a3i", "A.a4.a4i"]),
+    ]
+
+    # resolve all imports
+    imports = scope_all.resolve_imports().get_imports()
+
+    # generate requirements
+    # - order is important!
+    mapped = mapper.generate_requirements_list(imports=imports)
+    assert mapped._get_debug_struct() == [
+        ("asdf", ["t_ast_parser"]),
+        ("buzz", ["t_ast_parser"]),
+        ("extern_a4i", ["A.a4.a4i"]),
+        ("foo", ["t_ast_parser"]),
+        ("glob_extern", ["A.a1", "A.a2", "A.a3.a3i", "B.b1", "B.b2", "C"]),
+        ("package", ["t_ast_parser"]),
+    ]
+
+    # generate requirements
+    mapped = mapper.generate_requirements_list(imports=imports, requirements_env="asdf")
+    assert mapped._get_debug_struct() == [
+        ("asdf", ["t_ast_parser"]),
+        ("buzz", ["t_ast_parser"]),
+        ("foo", ["t_ast_parser"]),
+        ("glob_extern", ["A.a1", "A.a2", "A.a3.a3i", "A.a4.a4i", "B.b1", "B.b2", "C"]),
+        ("package", ["t_ast_parser"]),
+    ]
+
+    # resolve all imports under scope_a
+    imports = scope_all.resolve_imports(start_scope=scope_a).get_imports()
+    mapped = mapper.generate_requirements_list(imports=imports, requirements_env="asdf")
+    assert mapped._get_debug_struct() == [
+        ("glob_extern", ["A.a1", "A.a2", "A.a3.a3i", "A.a4.a4i", "B.b1", "B.b2", "C"]),
+    ]
+
+    imports = scope_all.resolve_imports(
+        start_scope=scope_a, exclude_in_search_space=False
+    ).get_imports()
+    mapped = mapper.generate_requirements_list(imports=imports, requirements_env="asdf")
+    assert mapped._get_debug_struct() == [
+        ("A", ["A.a1", "A.a3.a3i"]),
+        ("C", ["B.b2"]),
+        ("glob_B", ["A.a2", "A.a3.a3i", "A.a4.a4i", "B.b1"]),
+        ("glob_extern", ["A.a1", "A.a2", "A.a3.a3i", "A.a4.a4i", "B.b1", "B.b2", "C"]),
+    ]
+
+    imports = scope_all.resolve_imports(
+        exclude_in_search_space=False, exclude_builtins=False
+    ).get_imports()
+    mapped = mapper.generate_requirements_list(imports=imports, requirements_env="asdf")
+    assert mapped._get_debug_struct() == [
+        ("A", ["A.a1", "A.a3.a3i"]),
+        ("C", ["B.b2"]),
+        ("asdf", ["t_ast_parser"]),
+        ("buzz", ["t_ast_parser"]),
+        ("foo", ["t_ast_parser"]),
+        ("glob_B", ["A.a2", "A.a3.a3i", "A.a4.a4i", "B.b1"]),
+        ("glob_extern", ["A.a1", "A.a2", "A.a3.a3i", "A.a4.a4i", "B.b1", "B.b2", "C"]),
+        ("json", ["t_ast_parser"]),
+        ("os", ["t_ast_parser"]),
+        ("package", ["t_ast_parser"]),
+        ("sys", ["t_ast_parser"]),
+    ]
+
+    imports = scope_all.resolve_imports(
+        exclude_in_search_space=True, exclude_builtins=False
+    ).get_imports()
+    mapped = mapper.generate_requirements_list(imports=imports, requirements_env="asdf")
+    assert mapped._get_debug_struct() == [
+        ("asdf", ["t_ast_parser"]),
+        ("buzz", ["t_ast_parser"]),
+        ("foo", ["t_ast_parser"]),
+        # appears wrong, but is correct
+        ("glob_extern", ["A.a1", "A.a2", "A.a3.a3i", "A.a4.a4i", "B.b1", "B.b2", "C"]),
+        ("json", ["t_ast_parser"]),
+        ("os", ["t_ast_parser"]),
+        ("package", ["t_ast_parser"]),
+        ("sys", ["t_ast_parser"]),
+    ]
+
+
+# ========================================================================= #
+# TESTS - REQUIREMENT GENERATION                                            #
+# ========================================================================= #
+
+
+# def test_requirement_generation():
+
+# generate requirements list
+# 1. resolve and filter
+# 2. map to requirements (make sure to keep and merge original sources)
+# 3. filter requirements again
+# 4. generate requirements list
 
 
 # ========================================================================= #
