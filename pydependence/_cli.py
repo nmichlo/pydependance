@@ -30,21 +30,20 @@ import pydantic
 from packaging.requirements import Requirement
 
 from pydependence._core.modules_scope import ModulesScope, RestrictMode, RestrictOp
-from pydependence._core.requirements_gen import (
-    WriteMode,
-    WriteRequirement,
-    WriteRules,
-    generate_output_requirements,
-)
 from pydependence._core.requirements_map import (
     DEFAULT_REQUIREMENTS_ENV,
     ImportMatcherBase,
     ImportMatcherGlob,
     ImportMatcherScope,
+    MappedRequirements,
     RequirementsMapper,
 )
-from pydependence._core.requirements_writers import read_and_dump_toml_imports
-from pydependence._core.utils import apply_root_to_path_str, load_toml_document
+from pydependence._core.utils import (
+    apply_root_to_path_str,
+    load_toml_document,
+    toml_file_replace_array,
+    txt_file_dump,
+)
 
 # ========================================================================= #
 # CONFIGS                                                                   #
@@ -52,38 +51,33 @@ from pydependence._core.utils import apply_root_to_path_str, load_toml_document
 
 
 class _WriteRules(pydantic.BaseModel, extra="forbid"):
-    builtin: Optional[WriteMode] = None
-    start_scope: Optional[WriteMode] = None
-    lazy: Optional[WriteMode] = None
+    visit_lazy: Optional[bool] = None
+    exclude_unvisited: Optional[bool] = None
+    exclude_in_search_space: Optional[bool] = None
+    exclude_builtins: Optional[bool] = None
 
     @classmethod
     def make_default(cls):
         return cls(
-            rule_is_builtin=WriteMode.exclude,
-            rule_start_scope=WriteMode.exclude,
-            rule_is_lazy=WriteMode.comment,
-        )
-
-    def get_write_rules(self) -> WriteRules:
-        assert self.builtin is not None
-        assert self.start_scope is not None
-        assert self.lazy is not None
-        return WriteRules(
-            write_mode_is_builtin=self.builtin,
-            write_mode_start_scope=self.start_scope,
-            write_mode_is_lazy=self.lazy,
+            visit_lazy=False,
+            exclude_unvisited=True,
+            exclude_in_search_space=True,
+            exclude_builtins=True,
         )
 
     def set_defaults(self, defaults: "_WriteRules"):
-        assert defaults.builtin is not None
-        assert defaults.start_scope is not None
-        assert defaults.lazy is not None
-        if self.builtin is None:
-            self.builtin = defaults.builtin
-        if self.start_scope is None:
-            self.start_scope = defaults.start_scope
-        if self.lazy is None:
-            self.lazy = defaults.lazy
+        assert defaults.visit_lazy is not None
+        assert defaults.exclude_unvisited is not None
+        assert defaults.exclude_in_search_space is not None
+        assert defaults.exclude_builtins is not None
+        if self.visit_lazy is None:
+            self.visit_lazy = defaults.visit_lazy
+        if self.exclude_unvisited is None:
+            self.exclude_unvisited = defaults.exclude_unvisited
+        if self.exclude_in_search_space is None:
+            self.exclude_in_search_space = defaults.exclude_in_search_space
+        if self.exclude_builtins is None:
+            self.exclude_builtins = defaults.exclude_builtins
 
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
@@ -91,17 +85,19 @@ class _WriteRules(pydantic.BaseModel, extra="forbid"):
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
 
 
-class _Output(pydantic.BaseModel, extra="forbid"):
+class _Output(_WriteRules):
     # resolve
     scope: str
     start_scope: Optional[str] = None
-    visit_lazy: bool = True
 
-    # env
+    # resolve - settings
+    visit_lazy: bool = False
+    exclude_unvisited: bool = True
+    exclude_in_search_space: bool = True
+    exclude_builtins: bool = True
+
+    # requirements mapping
     env: str = DEFAULT_REQUIREMENTS_ENV
-
-    # output filtering
-    write_rules: _WriteRules = pydantic.Field(default_factory=_WriteRules)
 
     # output
     output_mode: str
@@ -116,42 +112,65 @@ class _Output(pydantic.BaseModel, extra="forbid"):
         else:
             return self.scope
 
-    def _write_requirements(self, requirements: List[WriteRequirement]):
+    def _write_requirements(self, mapped_requirements: MappedRequirements) -> None:
         raise NotImplementedError(
             f"tried to write imports for {repr(self.get_output_name())}, write_imports not implemented for {self.__class__.__name__}"
         )
 
-    def generate_and_write_requirements(
+    def resolve_generate_and_write_requirements(
         self,
         loaded_scopes: Dict[str, ModulesScope],
         requirements_mapper: RequirementsMapper,
-    ):
-        requirements = generate_output_requirements(
-            scope=loaded_scopes[self.scope],
+    ) -> None:
+        resolved_imports = loaded_scopes[self.scope].resolve_imports(
             start_scope=loaded_scopes[self.start_scope] if self.start_scope else None,
-            requirements_mapper=requirements_mapper,
-            requirements_env=self.env,
-            write_rules=self.write_rules.get_write_rules(),
+            visit_lazy=self.visit_lazy,
+            exclude_unvisited=self.exclude_unvisited,
+            exclude_in_search_space=self.exclude_in_search_space,
+            exclude_builtins=self.exclude_builtins,
         )
-        return self._write_requirements(requirements=requirements)
+        mapped_requirements = requirements_mapper.generate_requirements(
+            imports=resolved_imports,
+            requirements_env=self.env,
+        )
+        self._write_requirements(
+            mapped_requirements=mapped_requirements,
+        )
 
 
 class _OutputRequirements(_Output):
     output_mode: Literal["requirements"]
 
-    def _write_requirements(self, requirements: List[WriteRequirement]):
-        raise NotImplementedError
+    def _write_requirements(self, mapped_requirements: MappedRequirements):
+        string = mapped_requirements.as_requirements_txt(
+            notice=True,
+            sources=True,
+            sources_compact=False,
+            sources_roots=False,
+            indent_size=4,
+        )
+        txt_file_dump(
+            file=self.output_file,
+            contents=string,
+        )
 
 
 class _OutputPyprojectOptionalDeps(_Output):
     output_mode: Literal["optional-dependencies"]
     output_file: Optional[str] = None
 
-    def _write_requirements(self, requirements: List[WriteRequirement]):
-        read_and_dump_toml_imports(
+    def _write_requirements(self, mapped_requirements: MappedRequirements):
+        array = mapped_requirements.as_toml_array(
+            notice=True,
+            sources=True,
+            sources_compact=False,
+            sources_roots=False,
+            indent_size=4,
+        )
+        toml_file_replace_array(
             file=self.output_file,
             keys=["project", "optional-dependencies", self.get_output_name()],
-            requirements=requirements,
+            array=array,
         )
 
 
@@ -159,11 +178,18 @@ class _OutputPyprojectDeps(_Output):
     output_mode: Literal["dependencies"]
     output_file: Optional[str] = None
 
-    def _write_requirements(self, requirements: List[WriteRequirement]):
-        read_and_dump_toml_imports(
+    def _write_requirements(self, mapped_requirements: MappedRequirements):
+        array = mapped_requirements.as_toml_array(
+            notice=True,
+            sources=True,
+            sources_compact=False,
+            sources_roots=False,
+            indent_size=4,
+        )
+        toml_file_replace_array(
             file=self.output_file,
             keys=["project", "dependencies"],
-            requirements=requirements,
+            array=array,
         )
 
 
@@ -245,7 +271,7 @@ class CfgScope(pydantic.BaseModel, extra="forbid"):
 
     # search paths
     search_paths: List[str] = pydantic.Field(default_factory=list)
-    pkg_paths: List[str] = pydantic.Field(default_factory=list)
+    package_paths: List[str] = pydantic.Field(default_factory=list)
 
     # extra packages
     packages: List[str] = pydantic.Field(default_factory=list)
@@ -429,7 +455,7 @@ class PydependenceCfg(pydantic.BaseModel, extra="forbid"):
 
         # also apply all default write modes
         for output in self.resolvers:
-            output.write_rules.set_defaults(self.default_write_rules)
+            output.set_defaults(self.default_write_rules)
 
     def load_scopes(self) -> Dict[str, ModulesScope]:
         # resolve all scopes
@@ -487,7 +513,7 @@ class PydependenceCfg(pydantic.BaseModel, extra="forbid"):
 
         # resolve the scopes!
         for output in self.resolvers:
-            output.generate_and_write_requirements(
+            output.resolve_generate_and_write_requirements(
                 loaded_scopes=loaded_scopes,
                 requirements_mapper=requirements_mapper,
             )
@@ -523,14 +549,18 @@ class PyprojectToml(pydantic.BaseModel, extra="ignore"):
 # ========================================================================= #
 
 
-def pydeps():
-    if len(sys.argv) == 1:
-        script = sys.argv[0]
-        file = Path(__file__).parent.parent / "pyproject.toml"
-    elif len(sys.argv) == 2:
-        script, file = sys.argv
-    else:
-        raise ValueError("too many arguments!")
+def pydeps(
+    file: Optional[str] = None,
+):
+    # 0. cli
+    if file is None:
+        if len(sys.argv) == 1:
+            script = sys.argv[0]
+            file = Path(__file__).parent.parent / "pyproject.toml"
+        elif len(sys.argv) == 2:
+            script, file = sys.argv
+        else:
+            raise ValueError("too many arguments!")
     # 1. get absolute
     file = Path(file).resolve().absolute()
     # 2. load pyproject.toml
@@ -542,9 +572,5 @@ def pydeps():
 
 
 # ========================================================================= #
-# CLI                                                                       #
+# END                                                                       #
 # ========================================================================= #
-
-
-if __name__ == "__main__":
-    pydeps()
