@@ -459,7 +459,7 @@ class PydependenceCfg(pydantic.BaseModel, extra="forbid"):
     scopes: List[CfgScope] = pydantic.Field(default_factory=dict)
 
     # outputs
-    resolve: List[CfgResolver] = pydantic.Field(default_factory=list)
+    resolvers: List[CfgResolver] = pydantic.Field(default_factory=list)
 
     @pydantic.field_validator("versions", mode="before")
     @classmethod
@@ -525,7 +525,7 @@ class PydependenceCfg(pydantic.BaseModel, extra="forbid"):
         for scope in self.scopes:
             scope.search_paths = [s(x) for x in scope.search_paths]
             scope.pkg_paths = [s(x) for x in scope.pkg_paths]
-        for output in self.resolve:
+        for output in self.resolvers:
             if output.output_file is not None:
                 output.output_file = s(output.output_file)
             if output.output_file is None:
@@ -537,7 +537,7 @@ class PydependenceCfg(pydantic.BaseModel, extra="forbid"):
         # also apply all default write modes
         for scope in self.scopes:
             scope.set_defaults(self.default_scope_rules)
-        for output in self.resolve:
+        for output in self.resolvers:
             output.set_defaults(self.default_resolve_rules)
 
     def load_scopes(self) -> "LoadedScopes":
@@ -576,7 +576,7 @@ class PydependenceCfg(pydantic.BaseModel, extra="forbid"):
         # - warn if generally not unique, error if optional-deps not unique
         names_all = set()
         names_optional_deps = set()
-        for output in self.resolve:
+        for output in self.resolvers:
             name = output.get_output_name()
             if name in names_all:
                 warnings.warn(
@@ -591,7 +591,7 @@ class PydependenceCfg(pydantic.BaseModel, extra="forbid"):
                 names_optional_deps.add(name)
 
         # check that the scopes exists
-        for output in self.resolve:
+        for output in self.resolvers:
             if output.scope not in loaded_scopes:
                 raise ValueError(
                     f"output scope {repr(output.scope)} does not exist! Are you sure it has been defined?"
@@ -605,7 +605,7 @@ class PydependenceCfg(pydantic.BaseModel, extra="forbid"):
         requirements_mapper = self.make_requirements_mapper(loaded_scopes=loaded_scopes)
 
         # resolve the scopes!
-        for output in self.resolve:
+        for output in self.resolvers:
             output.resolve_generate_and_write_requirements(
                 loaded_scopes=loaded_scopes,
                 requirements_mapper=requirements_mapper,

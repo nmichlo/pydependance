@@ -25,6 +25,7 @@
 from pathlib import Path
 
 import pytest
+import tomlkit
 
 from pydependence._cli import PyprojectToml, pydeps
 from pydependence._core.module_data import ModuleMetadata
@@ -58,6 +59,7 @@ from pydependence._core.requirements_map import (
     ReqMatcher,
     RequirementsMapper,
 )
+from pydependence._core.utils import load_toml_document, toml_file_replace_array
 
 # ========================================================================= #
 # fixture                                                                   #
@@ -1189,12 +1191,59 @@ def test_toml_array_gen(mapper: RequirementsMapper):
 
 
 def test_pydeps_cli():
-    # 2. load pyproject.toml
-    pyproject = PyprojectToml.from_pyproject(PKGS_ROOT_PYPROJECT)
-    # 3. generate search spaces, recursively resolving!
-    loaded_scopes = pyproject.tool.pydependence.load_scopes()
-    # 4. generate outputs
-    pyproject.tool.pydependence.write_all_outputs(loaded_scopes)
+
+    TARGET_PROJECT_DEPS = [
+        "asdf",
+        "extern_C",
+        "foo",
+        "package",
+    ]
+    TARGET_OPTIONAL_DEPS = [
+        "asdf",
+        "buzz",
+        "extern_C",
+        "extern_b1",
+        "extern_b2",
+        "foo",
+        "package",
+    ]
+
+    doc = load_toml_document(PKGS_ROOT_PYPROJECT)
+
+    # load original document
+    orig_project_deps = doc["project"]["dependencies"]
+    orig_optional_deps = doc["project"]["optional-dependencies"]["all"]
+    assert orig_project_deps.unwrap() == TARGET_PROJECT_DEPS
+    assert orig_optional_deps.unwrap() == TARGET_OPTIONAL_DEPS
+
+    # replace arrays
+    toml_file_replace_array(
+        file=PKGS_ROOT_PYPROJECT,
+        keys=["project", "dependencies"],
+        array=tomlkit.array(),
+    )
+    toml_file_replace_array(
+        file=PKGS_ROOT_PYPROJECT,
+        keys=["project", "optional-dependencies", "all"],
+        array=tomlkit.array(),
+    )
+
+    # load modified document
+    doc = load_toml_document(PKGS_ROOT_PYPROJECT)
+    reset_project_deps = doc["project"]["dependencies"]
+    reset_optional_deps = doc["project"]["optional-dependencies"]["all"]
+    assert reset_project_deps.unwrap() == []
+    assert reset_optional_deps.unwrap() == []
+
+    # run cli
+    pydeps(PKGS_ROOT_PYPROJECT)
+
+    # load modified document
+    doc = load_toml_document(PKGS_ROOT_PYPROJECT)
+    new_project_deps = doc["project"]["dependencies"]
+    new_optional_deps = doc["project"]["optional-dependencies"]["all"]
+    assert new_project_deps.unwrap() == TARGET_PROJECT_DEPS
+    assert new_optional_deps.unwrap() == TARGET_OPTIONAL_DEPS
 
 
 # ========================================================================= #
