@@ -159,10 +159,13 @@ versions = [
 
 resolvers = [
     # output_name is optional, by default it is the same as the scope name, or sub scope
-    {output_mode='dependencies', scope='pydependence', start_scope='pydependence-core'},
-    {output_mode='optional-dependencies', scope='pydependence', start_scope='pydependence-core', output_name='all', visit_lazy=true},
+    {output_mode='dependencies', scope='pydependence'},
+    {output_mode='optional-dependencies', scope='pydependence', output_name='all', visit_lazy=true},
+    {output_mode='optional-dependencies', scope='pydependence', start_scope='pydependence-core', output_name='core', visit_lazy=true},
     {output_mode='optional-dependencies', scope='pydependence', output_name='example_core_no_lazy'},
     {output_mode='optional-dependencies', scope='pydependence', env='legacy', output_name='example_legacy', visit_lazy=true},
+#    {output_mode='optional-dependencies', output_name='test', raw=['pytest', 'pytest-cov']},
+#    {output_mode='optional-dependencies', output_name='dev', raw=['pre-commit']},
 ]
 
 # collections of packages and dependencies that will then be resolved.
@@ -174,7 +177,6 @@ pkg_paths = "pydependence/pydependence"
 name = "pydependence-core"
 parents = ["pydependence"]
 limit = "pydependence._core"
-
 
 # =========================================== #
 # PROJECT                                     #
@@ -211,6 +213,10 @@ dependencies = [
     "networkx",
     # ← pydependence._core.modules_resolver
     # ← pydependence._core.modules_scope
+    "packaging",
+    # ← pydependence._cli
+    "pydantic>=2.0.0",
+    # ← pydependence._cli
     "stdlib_list",
     # ← pydependence._core.builtin
 ]
@@ -239,6 +245,10 @@ all = [
     "networkx",
     # ← pydependence._core.modules_resolver
     # ← pydependence._core.modules_scope
+    "packaging",
+    # ← pydependence._cli
+    "pydantic>=2.0.0",
+    # ← pydependence._cli
     "stdlib_list",
     # ← pydependence._core.builtin
     "tomlkit",
@@ -246,6 +256,17 @@ all = [
     # ← pydependence._core.utils
 ]
 
+core = [
+    # [AUTOGEN] by pydependence **DO NOT EDIT** [AUTOGEN]
+    "networkx",
+    # ← pydependence._core.modules_resolver
+    # ← pydependence._core.modules_scope
+    "stdlib_list",
+    # ← pydependence._core.builtin
+    "tomlkit",
+    # ← pydependence._core.requirements_map
+    # ← pydependence._core.utils
+]
 
 example_core_no_lazy = [
     # [AUTOGEN] by pydependence **DO NOT EDIT** [AUTOGEN]
