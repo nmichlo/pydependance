@@ -22,20 +22,29 @@
 # SOFTWARE.                                                                      #
 # ============================================================================== #
 import sys
+import warnings
 from collections import defaultdict
+from enum import Enum
 from pathlib import Path
 from typing import Annotated, Dict, List, Literal, Optional, Union
 
 import pydantic
 from packaging.requirements import Requirement
 
-from pydependence._core.modules_scope import ModulesScope, RestrictMode, RestrictOp
+from pydependence._core.modules_scope import (
+    ModulesScope,
+    RestrictMode,
+    RestrictOp,
+    UnreachableModeEnum,
+)
 from pydependence._core.requirements_map import (
     DEFAULT_REQUIREMENTS_ENV,
     ImportMatcherBase,
     ImportMatcherGlob,
+    ImportMatcherGlobs,
     ImportMatcherScope,
     MappedRequirements,
+    ReqMatcher,
     RequirementsMapper,
 )
 from pydependence._core.utils import (
@@ -50,26 +59,29 @@ from pydependence._core.utils import (
 # ========================================================================= #
 
 
-class _WriteRules(pydantic.BaseModel, extra="forbid"):
+class _ResolveRules(pydantic.BaseModel, extra="forbid"):
     visit_lazy: Optional[bool] = None
     exclude_unvisited: Optional[bool] = None
     exclude_in_search_space: Optional[bool] = None
     exclude_builtins: Optional[bool] = None
+    strict_requirements_map: Optional[bool] = None
 
     @classmethod
-    def make_default(cls):
-        return cls(
+    def make_default_base_rules(cls):
+        return _ResolveRules(
             visit_lazy=False,
             exclude_unvisited=True,
             exclude_in_search_space=True,
             exclude_builtins=True,
+            strict_requirements_map=True,
         )
 
-    def set_defaults(self, defaults: "_WriteRules"):
+    def set_defaults(self, defaults: "_ResolveRules"):
         assert defaults.visit_lazy is not None
         assert defaults.exclude_unvisited is not None
         assert defaults.exclude_in_search_space is not None
         assert defaults.exclude_builtins is not None
+        assert defaults.strict_requirements_map is not None
         if self.visit_lazy is None:
             self.visit_lazy = defaults.visit_lazy
         if self.exclude_unvisited is None:
@@ -78,6 +90,8 @@ class _WriteRules(pydantic.BaseModel, extra="forbid"):
             self.exclude_in_search_space = defaults.exclude_in_search_space
         if self.exclude_builtins is None:
             self.exclude_builtins = defaults.exclude_builtins
+        if self.strict_requirements_map is None:
+            self.strict_requirements_map = defaults.strict_requirements_map
 
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
@@ -85,16 +99,16 @@ class _WriteRules(pydantic.BaseModel, extra="forbid"):
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
 
 
-class _Output(_WriteRules):
+class OutputModeEnum(str, Enum):
+    requirements = "requirements"
+    optional_dependencies = "optional-dependencies"
+    dependencies = "dependencies"
+
+
+class _Output(_ResolveRules, extra="forbid"):
     # resolve
     scope: str
     start_scope: Optional[str] = None
-
-    # resolve - settings
-    visit_lazy: bool = False
-    exclude_unvisited: bool = True
-    exclude_in_search_space: bool = True
-    exclude_builtins: bool = True
 
     # requirements mapping
     env: str = DEFAULT_REQUIREMENTS_ENV
@@ -119,7 +133,7 @@ class _Output(_WriteRules):
 
     def resolve_generate_and_write_requirements(
         self,
-        loaded_scopes: Dict[str, ModulesScope],
+        loaded_scopes: "LoadedScopes",
         requirements_mapper: RequirementsMapper,
     ) -> None:
         resolved_imports = loaded_scopes[self.scope].resolve_imports(
@@ -132,6 +146,7 @@ class _Output(_WriteRules):
         mapped_requirements = requirements_mapper.generate_requirements(
             imports=resolved_imports,
             requirements_env=self.env,
+            strict=self.strict_requirements_map,
         )
         self._write_requirements(
             mapped_requirements=mapped_requirements,
@@ -139,7 +154,7 @@ class _Output(_WriteRules):
 
 
 class _OutputRequirements(_Output):
-    output_mode: Literal["requirements"]
+    output_mode: Literal[OutputModeEnum.requirements]
 
     def _write_requirements(self, mapped_requirements: MappedRequirements):
         string = mapped_requirements.as_requirements_txt(
@@ -156,7 +171,7 @@ class _OutputRequirements(_Output):
 
 
 class _OutputPyprojectOptionalDeps(_Output):
-    output_mode: Literal["optional-dependencies"]
+    output_mode: Literal[OutputModeEnum.optional_dependencies]
     output_file: Optional[str] = None
 
     def _write_requirements(self, mapped_requirements: MappedRequirements):
@@ -175,7 +190,7 @@ class _OutputPyprojectOptionalDeps(_Output):
 
 
 class _OutputPyprojectDeps(_Output):
-    output_mode: Literal["dependencies"]
+    output_mode: Literal[OutputModeEnum.dependencies]
     output_file: Optional[str] = None
 
     def _write_requirements(self, mapped_requirements: MappedRequirements):
@@ -211,7 +226,7 @@ class CfgVersion(pydantic.BaseModel, extra="forbid", arbitrary_types_allowed=Tru
     # the pip install requirement
     requirement: str
     # the imports to replace
-    import_: Optional[str] = pydantic.Field(default=None, alias="import")
+    import_: Optional[List[str]] = pydantic.Field(default=None, alias="import")
     scope: Optional[str] = None
     # only apply this import to this environment
     env: str = DEFAULT_REQUIREMENTS_ENV
@@ -228,9 +243,7 @@ class CfgVersion(pydantic.BaseModel, extra="forbid", arbitrary_types_allowed=Tru
     def from_string(cls, requirement: str):
         return cls(requirement=requirement)
 
-    def get_import_matcher(
-        self, loaded_scopes: "Dict[str, ModulesScope]"
-    ) -> ImportMatcherBase:
+    def get_import_matcher(self, loaded_scopes: "LoadedScopes") -> ImportMatcherBase:
         if self.scope is not None:
             if self.import_ is not None:
                 raise ValueError(f"cannot specify both scope and import for: {self}")
@@ -240,7 +253,7 @@ class CfgVersion(pydantic.BaseModel, extra="forbid", arbitrary_types_allowed=Tru
             if self.import_ is None:
                 raise ValueError(f"must specify either scope or import for: {self}")
             else:
-                return ImportMatcherGlob(import_glob=self.import_)
+                return ImportMatcherGlobs(import_globs=self.import_)
 
     @pydantic.model_validator(mode="after")
     @classmethod
@@ -250,9 +263,17 @@ class CfgVersion(pydantic.BaseModel, extra="forbid", arbitrary_types_allowed=Tru
                 f"env must be a valid identifier (with hyphens replaced with underscores), got: {v.env}"
             )
         if v.import_ is None and v.scope is None:
-            v.import_ = f"{v.package}.*"  # wildcard
+            v.import_ = [f"{v.package}.*"]  # wildcard
         elif v.import_ is not None and v.scope is not None:
             raise ValueError(f"cannot specify both scope and import for: {v}")
+        return v
+
+    @pydantic.field_validator("import_", mode="before")
+    @classmethod
+    def _validate_import(cls, v):
+        if v is not None:
+            if isinstance(v, str):
+                v = v.split(",")
         return v
 
 
@@ -261,7 +282,23 @@ class CfgVersion(pydantic.BaseModel, extra="forbid", arbitrary_types_allowed=Tru
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
 
 
-class CfgScope(pydantic.BaseModel, extra="forbid"):
+class _ScopeRules(pydantic.BaseModel, extra="forbid"):
+
+    unreachable_mode: Optional[UnreachableModeEnum] = None
+
+    @classmethod
+    def make_default_base_rules(cls):
+        return _ScopeRules(
+            unreachable_mode=UnreachableModeEnum.error,
+        )
+
+    def set_defaults(self, defaults: "_ScopeRules"):
+        assert defaults.unreachable_mode is not None
+        if self.unreachable_mode is None:
+            self.unreachable_mode = defaults.unreachable_mode
+
+
+class CfgScope(_ScopeRules, extra="forbid"):
     # name
     # - must be unique across all scopes & sub-scopes
     name: str
@@ -271,7 +308,8 @@ class CfgScope(pydantic.BaseModel, extra="forbid"):
 
     # search paths
     search_paths: List[str] = pydantic.Field(default_factory=list)
-    package_paths: List[str] = pydantic.Field(default_factory=list)
+    pkg_paths: List[str] = pydantic.Field(default_factory=list)
+    unreachable_mode: Optional[UnreachableModeEnum] = None
 
     # extra packages
     packages: List[str] = pydantic.Field(default_factory=list)
@@ -311,7 +349,7 @@ class CfgScope(pydantic.BaseModel, extra="forbid"):
     def _validate_exclude(cls, v):
         return [v] if isinstance(v, str) else v
 
-    def make_module_scope(self, loaded_scopes: "Dict[str, ModulesScope]" = None):
+    def make_module_scope(self, loaded_scopes: "LoadedScopes" = None):
         m = ModulesScope()
 
         # 1. load parents
@@ -327,20 +365,32 @@ class CfgScope(pydantic.BaseModel, extra="forbid"):
 
         # 2. load new search paths and packages
         for path in self.search_paths:
-            m.add_modules_from_search_path(Path(path), tag=self.name)
+            m.add_modules_from_search_path(
+                Path(path),
+                tag=self.name,
+                unreachable_mode=self.unreachable_mode,
+            )
         for path in self.pkg_paths:
-            m.add_modules_from_package_path(Path(path), tag=self.name)
+            m.add_modules_from_package_path(
+                Path(path),
+                tag=self.name,
+                unreachable_mode=self.unreachable_mode,
+            )
 
         # 3. add extra packages
         if self.packages:
-            raise NotImplementedError
-            # m.add_modules_from_raw_imports(imports=self.packages)
+            m.add_modules_from_raw_imports(
+                imports=self.packages,
+                tag=self.name,
+            )
 
         # 4. filter everything
         # - a. limit, b. exclude, [c. include (replaced with parents)]
         if self.limit:
             m = m.get_restricted_scope(
-                imports=self.limit, mode=RestrictMode.CHILDREN, op=RestrictOp.LIMIT
+                imports=self.limit,
+                mode=RestrictMode.CHILDREN,
+                op=RestrictOp.LIMIT,
             )
         if self.exclude:
             m = m.get_restricted_scope(
@@ -354,6 +404,37 @@ class CfgScope(pydantic.BaseModel, extra="forbid"):
 
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
+# Loaded Scopes                                                             #
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
+
+
+class UndefinedScopeError(ValueError):
+    pass
+
+
+class LoadedScopes:
+
+    def __init__(self):
+        self._scopes = {}
+
+    def __contains__(self, item):
+        return item in self._scopes
+
+    def __getitem__(self, item: str) -> ModulesScope:
+        if item not in self._scopes:
+            raise UndefinedScopeError(
+                f"scope {repr(item)} is not defined, must be one of: {sorted(self._scopes.keys())}"
+            )
+        return self._scopes[item]
+
+    def __setitem__(self, key, value):
+        assert isinstance(value, ModulesScope)
+        if key in self:
+            raise ValueError(f"scope {repr(key)} is already defined!")
+        self._scopes[key] = value
+
+
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
 # CONFIG - ROOT                                                             #
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
 
@@ -364,12 +445,12 @@ class PydependenceCfg(pydantic.BaseModel, extra="forbid"):
     default_root: str = ".."
 
     # default write modes
-    default_write_rules: _WriteRules = pydantic.Field(
-        default_factory=_WriteRules.make_default
+    default_resolve_rules: _ResolveRules = pydantic.Field(
+        default_factory=_ResolveRules.make_default_base_rules
     )
-
-    # config
-    strict_requirements_map: bool = True
+    default_scope_rules: _ScopeRules = pydantic.Field(
+        default_factory=_ScopeRules.make_default_base_rules
+    )
 
     # package versions
     versions: List[CfgVersion] = pydantic.Field(default_factory=list)
@@ -378,7 +459,7 @@ class PydependenceCfg(pydantic.BaseModel, extra="forbid"):
     scopes: List[CfgScope] = pydantic.Field(default_factory=dict)
 
     # outputs
-    resolvers: List[CfgResolver] = pydantic.Field(default_factory=list)
+    resolve: List[CfgResolver] = pydantic.Field(default_factory=list)
 
     @pydantic.field_validator("versions", mode="before")
     @classmethod
@@ -444,7 +525,7 @@ class PydependenceCfg(pydantic.BaseModel, extra="forbid"):
         for scope in self.scopes:
             scope.search_paths = [s(x) for x in scope.search_paths]
             scope.pkg_paths = [s(x) for x in scope.pkg_paths]
-        for output in self.resolvers:
+        for output in self.resolve:
             if output.output_file is not None:
                 output.output_file = s(output.output_file)
             if output.output_file is None:
@@ -454,12 +535,14 @@ class PydependenceCfg(pydantic.BaseModel, extra="forbid"):
                     output.output_file = s(pyproject_path)
 
         # also apply all default write modes
-        for output in self.resolvers:
-            output.set_defaults(self.default_write_rules)
+        for scope in self.scopes:
+            scope.set_defaults(self.default_scope_rules)
+        for output in self.resolve:
+            output.set_defaults(self.default_resolve_rules)
 
-    def load_scopes(self) -> Dict[str, ModulesScope]:
+    def load_scopes(self) -> "LoadedScopes":
         # resolve all scopes
-        loaded_scopes: "Dict[str, ModulesScope]" = {}
+        loaded_scopes = LoadedScopes()
         for scope_cfg in self.scopes:
             scope = scope_cfg.make_module_scope(loaded_scopes=loaded_scopes)
             loaded_scopes[scope_cfg.name] = scope
@@ -474,31 +557,41 @@ class PydependenceCfg(pydantic.BaseModel, extra="forbid"):
 
     def make_requirements_mapper(
         self,
-        loaded_scopes: "Dict[str, ModulesScope]",
+        loaded_scopes: "LoadedScopes",
     ):
         env_matchers = defaultdict(list)
         for v in self.versions:
             import_matcher = v.get_import_matcher(loaded_scopes=loaded_scopes)
-            pair = (v.requirement, import_matcher)
+            pair = ReqMatcher(requirement=v.requirement, matcher=import_matcher)
             env_matchers[v.env].append(pair)
         env_matchers = dict(env_matchers)
 
         return RequirementsMapper(
             env_matchers=env_matchers,
-            strict=self.strict_requirements_map,
         )
 
-    def write_all_outputs(self, loaded_scopes: "Dict[str, ModulesScope]"):
+    def write_all_outputs(self, loaded_scopes: "LoadedScopes"):
         # check that scope output names are unique
-        names = set()
-        for output in self.resolvers:
+        # - output names only need to be unique if they are optional-dependencies!
+        # - warn if generally not unique, error if optional-deps not unique
+        names_all = set()
+        names_optional_deps = set()
+        for output in self.resolve:
             name = output.get_output_name()
-            if name in names:
-                raise ValueError(f"output name {repr(name)} is not unique!")
-            names.add(name)
+            if name in names_all:
+                warnings.warn(
+                    f"output name {repr(name)} is not unique across all resolvers!"
+                )
+            names_all.add(name)
+            if output.output_mode == OutputModeEnum.optional_dependencies:
+                if name in names_optional_deps:
+                    raise ValueError(
+                        f"output name {repr(name)} is not unique across resolvers for optional dependencies!"
+                    )
+                names_optional_deps.add(name)
 
         # check that the scopes exists
-        for output in self.resolvers:
+        for output in self.resolve:
             if output.scope not in loaded_scopes:
                 raise ValueError(
                     f"output scope {repr(output.scope)} does not exist! Are you sure it has been defined?"
@@ -512,7 +605,7 @@ class PydependenceCfg(pydantic.BaseModel, extra="forbid"):
         requirements_mapper = self.make_requirements_mapper(loaded_scopes=loaded_scopes)
 
         # resolve the scopes!
-        for output in self.resolvers:
+        for output in self.resolve:
             output.resolve_generate_and_write_requirements(
                 loaded_scopes=loaded_scopes,
                 requirements_mapper=requirements_mapper,
@@ -550,7 +643,7 @@ class PyprojectToml(pydantic.BaseModel, extra="ignore"):
 
 
 def pydeps(
-    file: Optional[str] = None,
+    file: Optional[Union[str, Path]] = None,
 ):
     # 0. cli
     if file is None:

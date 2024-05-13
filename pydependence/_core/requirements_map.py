@@ -21,6 +21,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE  #
 # SOFTWARE.                                                                      #
 # ============================================================================== #
+import abc
 import dataclasses
 import functools
 import warnings
@@ -43,9 +44,14 @@ DEFAULT_REQUIREMENTS_ENV = "default"
 # ========================================================================= #
 
 
-class ImportMatcherBase:
+class ImportMatcherBase(abc.ABC):
 
+    @abc.abstractmethod
     def match(self, import_: str) -> bool:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def cfg_str(self) -> str:
         raise NotImplementedError
 
 
@@ -57,10 +63,14 @@ class ImportMatcherScope(ImportMatcherBase):
     def match(self, import_: str) -> bool:
         return self.scope.has_module(import_)
 
+    def cfg_str(self) -> str:
+        return f"scope={repr(self.scope)}"
+
 
 class ImportMatcherGlob(ImportMatcherBase):
 
     def __init__(self, import_glob: str):
+        self._orig = import_glob
         (*parts, last) = import_glob.split(".")
         # check all parts are identifiers, OR, at least one identifier with the last part being a glob
         if parts:
@@ -92,6 +102,58 @@ class ImportMatcherGlob(ImportMatcherBase):
         else:
             parts = import_.split(".")
             return self._parts == parts[: len(self._parts)]
+
+    def cfg_str(self) -> str:
+        return f"import={repr(self._orig)}"
+
+
+class ImportMatcherGlobs(ImportMatcherBase):
+
+    def __init__(self, import_globs: "Union[str, List[str]]"):
+        if isinstance(import_globs, str):
+            import_globs = import_globs.split(",")
+        self._orig = ",".join(import_globs)
+        # create
+        self._matchers = []
+        # dedupe
+        _added = set()
+        for x in import_globs:
+            if x not in _added:
+                self._matchers.append(ImportMatcherGlob(x))
+                _added.add(x)
+
+    def match(self, import_: str) -> bool:
+        # linear search... inefficient...
+        for matcher in self._matchers:
+            if matcher.match(import_):
+                return True
+        return False
+
+    def cfg_str(self) -> str:
+        return f"import={repr(self._orig)}"
+
+
+# ========================================================================= #
+# REQUIREMENTS MAPPER (INTERMEDIATE)                                        #
+# ========================================================================= #
+
+
+# similar data structures to below, but nested differently. Could in theory be merged,
+# but not really worth it for now. The below is more intended for user output, while
+# this is more intended for actual information and for example isn't sorted and doesn't
+# contain helper functions.
+
+
+class ReqInfo(NamedTuple):
+    requirement: str
+    has_mapping: bool
+
+
+@dataclasses.dataclass
+class ReqInfoSources:
+    requirement: str
+    has_mapping: bool
+    sources: Dict[str, List[LocImportInfo]]
 
 
 # ========================================================================= #
@@ -227,9 +289,13 @@ class NoConfiguredRequirementMappingError(ValueError):
         super().__init__(msg)
 
 
-class ReqMatcher(NamedTuple):
+@dataclasses.dataclass(frozen=True)
+class ReqMatcher:
     requirement: str
     matcher: ImportMatcherBase
+
+    def cfg_str(self) -> str:
+        return f"{{requirement={repr(self.requirement)}, {self.matcher.cfg_str()}}}"
 
 
 class RequirementsMapper:
@@ -238,14 +304,12 @@ class RequirementsMapper:
         self,
         *,
         env_matchers: "Optional[Union[Dict[str, List[ReqMatcher]], List[ReqMatcher]]]",
-        strict: bool = False,
     ):
         # env -> [(requirement, import matcher), ...]
         # * we use a list to maintain order, and then linear search. This is because
         #   we could have multiple imports that match to the same requirement.
         #   we could potentially be stricter about this in future...
         self._env_matchers = self._validate_env_matchers(env_matchers)
-        self._strict = strict
 
     @classmethod
     def _validate_env_matchers(cls, env_matchers) -> "Dict[str, List[ReqMatcher]]":
@@ -254,6 +318,7 @@ class RequirementsMapper:
             env_matchers = {}
         elif not isinstance(env_matchers, dict):
             env_matchers = {DEFAULT_REQUIREMENTS_ENV: list(env_matchers)}
+
         # shift
         if None in env_matchers:
             if DEFAULT_REQUIREMENTS_ENV in env_matchers:
@@ -261,6 +326,7 @@ class RequirementsMapper:
                     f"env_matchers cannot have both {repr(None)} and {repr(DEFAULT_REQUIREMENTS_ENV)} as keys."
                 )
             env_matchers[DEFAULT_REQUIREMENTS_ENV] = env_matchers.pop(None)
+
         # check
         if not isinstance(env_matchers, dict):
             raise ValueError(
@@ -274,7 +340,7 @@ class RequirementsMapper:
             for matcher in matchers:
                 if not isinstance(matcher, ReqMatcher):
                     raise ValueError(
-                        f"env_matchers must be a dictionary of lists of ReqMatcherPair, got: {type(matcher)}"
+                        f"env_matchers must be a dictionary of lists of ReqMatcherPair, got: {type(matcher)}, {matcher}"
                     )
                 if not isinstance(matcher.requirement, str):
                     raise ValueError(
@@ -282,17 +348,35 @@ class RequirementsMapper:
                     )
                 if not isinstance(matcher.matcher, ImportMatcherBase):
                     raise ValueError(
-                        f"matcher must be an ImportMatcherBase, got: {type(matcher.matcher)}"
+                        f"matcher must be an ImportMatcherBase, got: {type(matcher.matcher)}, {matcher.matcher}"
                     )
         return env_matchers
 
-    @functools.lru_cache(maxsize=256)
     def map_import_to_requirement(
         self,
         import_: str,
         *,
         requirements_env: "Optional[str]" = None,
+        strict: bool = False,
     ) -> str:
+        req_info = self.map_import_to_requirement_info(
+            import_,
+            requirements_env=requirements_env,
+            strict=strict,
+        )
+        return req_info.requirement
+
+    @functools.lru_cache(maxsize=256)
+    def map_import_to_requirement_info(
+        self,
+        import_: str,
+        *,
+        requirements_env: "Optional[str]" = None,
+        strict: bool = False,
+    ) -> "ReqInfo":
+        """
+        :raises NoConfiguredRequirementMappingError: if no requirement is found for an import and if strict mode is enabled.
+        """
         if requirements_env is None:
             requirements_env = DEFAULT_REQUIREMENTS_ENV
         # 1. take the specific env
@@ -301,17 +385,15 @@ class RequirementsMapper:
                 raise ValueError(
                     f"env: {repr(requirements_env)} has not been defined for a requirement."
                 )
-            for requirement, matcher in self._env_matchers[requirements_env]:
-                if matcher.match(import_):
-                    return requirement
+            for rm in self._env_matchers[requirements_env]:
+                if rm.matcher.match(import_):
+                    return ReqInfo(rm.requirement, has_mapping=True)
         # 2. take the default env
-        for requirement, matcher in self._env_matchers.get(
-            DEFAULT_REQUIREMENTS_ENV, []
-        ):
-            if matcher.match(import_):
-                return requirement
+        for rm in self._env_matchers.get(DEFAULT_REQUIREMENTS_ENV, []):
+            if rm.matcher.match(import_):
+                return ReqInfo(rm.requirement, has_mapping=True)
         # 3. return the root
-        if self._strict:
+        if strict:
             raise NoConfiguredRequirementMappingError(
                 msg=f"could not find a mapped requirement for import: {repr(import_)}, define a scope or glob matcher for this import, or set disable strict mode!",
                 imports={import_},
@@ -321,81 +403,127 @@ class RequirementsMapper:
             warnings.warn(
                 f"could not find a matching requirement for import: {repr(import_)}, returning the import root: {repr(root)} as the requirement"
             )
-            return root
+            return ReqInfo(root, has_mapping=False)
+
+    def _get_joined_matchers(
+        self,
+        requirements_env: "Optional[str]" = None,
+    ) -> "List[ReqMatcher]":
+        if requirements_env is None:
+            requirements_env = DEFAULT_REQUIREMENTS_ENV
+        matchers = self._env_matchers.get(requirements_env, [])
+        if requirements_env != DEFAULT_REQUIREMENTS_ENV:
+            matchers = self._env_matchers.get(DEFAULT_REQUIREMENTS_ENV, []) + matchers
+        return matchers
+
+    def _get_matcher_cfg_sting(self, requirements_env: "Optional[str]" = None) -> "str":
+        return ", ".join(
+            [
+                rm.cfg_str()
+                for rm in self._get_joined_matchers(requirements_env=requirements_env)
+            ]
+        )
 
     def _group_imports_by_mapped_requirements(
         self,
         imports: "List[LocImportInfo]",
         *,
         requirements_env: "Optional[str]" = None,
-    ) -> "Dict[str, Dict[str, List[LocImportInfo]]]":
+        strict: bool = False,
+    ) -> "Dict[str, ReqInfoSources]":
         """
         Map imports to requirements, returning the imports grouped by the requirement.
 
         :raises NoConfiguredRequirementMappingError: if no requirement is found for an import, but only if strict mode is enabled, and after all imports have been processed so that pretty error messages can be generated.
         """
-        requirements: "Dict[str, Dict[str, List[LocImportInfo]]]" = defaultdict(
-            lambda: defaultdict(list)
-        )
+        # group imports by requirement
+        requirements: "Dict[str, ReqInfoSources]" = dict()
         errors = []
         for imp in imports:
-            try:
-                if imp in BUILTIN_MODULE_NAMES:
-                    requirement = imp
-                else:
-                    requirement = self.map_import_to_requirement(
+            # map requirements
+            if imp.target in BUILTIN_MODULE_NAMES:
+                req_info = ReqInfo(imp.target, has_mapping=False)  # TODO: needed?
+            elif imp.root_target in BUILTIN_MODULE_NAMES:
+                req_info = ReqInfo(imp.root_target, has_mapping=False)
+            else:
+                try:
+                    req_info = self.map_import_to_requirement_info(
                         imp.target,
                         requirements_env=requirements_env,
+                        strict=strict,
                     )
-                requirements[requirement][imp.source_name].append(imp)
-            except NoConfiguredRequirementMappingError as e:
-                errors.append(e)
+                except NoConfiguredRequirementMappingError as e:
+                    errors.append(e)
+                    continue
+            # get or create group
+            req_group = requirements.get(req_info.requirement, None)
+            if req_group is None:
+                req_group = ReqInfoSources(
+                    requirement=req_info.requirement,
+                    sources={},
+                    has_mapping=req_info.has_mapping,  # TODO: might not be updated?
+                )
+                requirements[req_info.requirement] = req_group
+            # append source
+            req_group.sources.setdefault(imp.source_name, []).append(imp)
 
         if errors:
             err_imports = {imp for e in errors for imp in e.imports}
             err_roots = {imp.split(".")[0] for imp in err_imports}
             raise NoConfiguredRequirementMappingError(
-                msg=f"could not find mapped requirements for, roots: {sorted(err_roots)}, or full imports: {sorted(err_imports)}",
+                msg=f"could not find import to requirement mappings for, "
+                f"roots: {sorted(err_roots)}, or full imports: {sorted(err_imports)}, "
+                f"available matchers: {self._get_matcher_cfg_sting(requirements_env=requirements_env)}, "
+                f"otherwise if running from a config file, set strict_requirements_map=False to disable strict mode and use the root module name instead.",
                 imports=err_imports,
             )
 
         # shallow copy
-        return {k: dict(v) for k, v in requirements.items()}
+        return requirements
 
     def generate_requirements(
         self,
         imports: "List[LocImportInfo]",
         *,
         requirements_env: "Optional[str]" = None,
+        strict: bool = False,
     ) -> "MappedRequirements":
+        """
+        :raises NoConfiguredRequirementMappingError: if no requirement is found for any import, but only if strict mode is enabled.
+        """
         # 1. map imports to requirements
         # {requirement: {source: [import_info, ...], ...}, ...}
-        requirements_sources_imports: "Dict[str, Dict[str, List[LocImportInfo]]]" = (
+        mapped_requirements_infos: "Dict[str, ReqInfoSources]" = (
             self._group_imports_by_mapped_requirements(
                 imports,
                 requirements_env=requirements_env,
+                strict=strict,
             )
         )
 
         # 2. generate requirements list
         output_reqs = []
-        for requirement in sorted(requirements_sources_imports.keys()):
+        for requirement in sorted(mapped_requirements_infos.keys()):
             # {source: [import_info, ...], ...}
-            requirement_sources = requirements_sources_imports[requirement]
+            mapped_requirement_info = mapped_requirements_infos[requirement]
+
             # - generate requirement sources
             source_modules = []
-            for source in sorted(requirement_sources.keys()):
+            for source in sorted(mapped_requirement_info.sources.keys()):
+                sources = mapped_requirement_info.sources[source]
                 write_src = MappedRequirementSourceModule(
                     source_module=source,
-                    source_module_imports=requirement_sources[source],
+                    source_module_imports=sources,
                 )
                 source_modules.append(write_src)
+
             # - generate requirement
             out_req = MappedRequirement(
                 requirement=requirement,
                 source_modules=source_modules,
             )
             output_reqs.append(out_req)
+
         # done!
         return MappedRequirements(requirements=output_reqs)
 

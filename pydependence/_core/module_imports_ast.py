@@ -154,6 +154,10 @@ class LocImportInfo(NamedTuple):
     is_relative: bool
 
     @property
+    def root_target(self) -> str:
+        return self.target.split(".")[0]
+
+    @property
     def source_name(self) -> str:
         return self.source_module_info.name
 

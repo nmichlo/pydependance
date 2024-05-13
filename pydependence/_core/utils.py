@@ -127,6 +127,9 @@ def toml_file_replace_array(
     keys: "List[str]",
     array: "tomlkit.items.Array",
 ):
+    # TODO: this needs multiple loads and writes if we are modifying multiple arrays
+    #       which is not ideal... but it is a simple solution for now.
+
     assert isinstance(
         array, tomlkit.items.Array
     ), f"array must be a tomlkit Array, got: {type(array)}"
@@ -144,6 +147,7 @@ def toml_file_replace_array(
     for i, k in enumerate(parent_keys):
         section = parent.setdefault(k, {})
         assert isinstance(section, tomlkit.items.Table)
+        parent = section
 
     # set array
     if array_key in parent:

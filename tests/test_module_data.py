@@ -26,6 +26,7 @@ from pathlib import Path
 
 import pytest
 
+from pydependence._cli import PyprojectToml, pydeps
 from pydependence._core.module_data import ModuleMetadata
 from pydependence._core.module_imports_ast import (
     ImportSourceEnum,
@@ -53,6 +54,7 @@ from pydependence._core.requirements_map import (
     ImportMatcherBase,
     ImportMatcherGlob,
     ImportMatcherScope,
+    NoConfiguredRequirementMappingError,
     ReqMatcher,
     RequirementsMapper,
 )
@@ -63,6 +65,8 @@ from pydependence._core.requirements_map import (
 
 
 PKGS_ROOT = Path(__file__).parent / "test-packages"
+
+PKGS_ROOT_PYPROJECT = PKGS_ROOT / "pyproject.toml"
 
 PKG_AST_TEST = PKGS_ROOT / "t_ast_parser.py"
 PKG_A = PKGS_ROOT / "A"
@@ -809,6 +813,15 @@ def test_requirement_mapping():
     assert m("C") == "scope_all"
     assert m("asdf.fdsa") == "ALT_glob_asdf"  # take root
 
+    # test strict
+    mapped = mapper.map_import_to_requirement("INVALID.IMPORT", strict=False)
+    assert mapped == "INVALID"
+    with pytest.raises(
+        NoConfiguredRequirementMappingError,
+        match="could not find a mapped requirement for import: 'INVALID.IMPORT'",
+    ):
+        mapper.map_import_to_requirement("INVALID.IMPORT", strict=True)
+
 
 # ========================================================================= #
 # TESTS - REQUIREMENT GENERATION                                            #
@@ -1168,6 +1181,20 @@ def test_toml_array_gen(mapper: RequirementsMapper):
         "    # ← t_ast_parser\n"
         "]"
     )
+
+
+# ========================================================================= #
+# TEST CLI                                                                  #
+# ========================================================================= #
+
+
+def test_pydeps_cli():
+    # 2. load pyproject.toml
+    pyproject = PyprojectToml.from_pyproject(PKGS_ROOT_PYPROJECT)
+    # 3. generate search spaces, recursively resolving!
+    loaded_scopes = pyproject.tool.pydependence.load_scopes()
+    # 4. generate outputs
+    pyproject.tool.pydependence.write_all_outputs(loaded_scopes)
 
 
 # ========================================================================= #
