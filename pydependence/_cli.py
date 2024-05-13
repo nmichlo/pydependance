@@ -110,6 +110,9 @@ class _Output(_ResolveRules, extra="forbid"):
     scope: str
     start_scope: Optional[str] = None
 
+    # raw requirements / imports that are mapped
+    raw: Optional[List[str]] = None
+
     # requirements mapping
     env: str = DEFAULT_REQUIREMENTS_ENV
 
@@ -147,6 +150,7 @@ class _Output(_ResolveRules, extra="forbid"):
             imports=resolved_imports,
             requirements_env=self.env,
             strict=self.strict_requirements_map,
+            raw=self.raw,
         )
         self._write_requirements(
             mapped_requirements=mapped_requirements,
@@ -312,7 +316,7 @@ class CfgScope(_ScopeRules, extra="forbid"):
     unreachable_mode: Optional[UnreachableModeEnum] = None
 
     # extra packages
-    packages: List[str] = pydantic.Field(default_factory=list)
+    # packages: List[str] = pydantic.Field(default_factory=list)
 
     # filtering: limit > exclude > [include!!] (in that order)
     # - order is important because it allows us to remove a band of modules
@@ -378,11 +382,12 @@ class CfgScope(_ScopeRules, extra="forbid"):
             )
 
         # 3. add extra packages
-        if self.packages:
-            m.add_modules_from_raw_imports(
-                imports=self.packages,
-                tag=self.name,
-            )
+        # if self.packages:
+        # m.add_modules_from_raw_imports(
+        #     imports=self.packages,
+        #     tag=self.name,
+        # )
+        # raise NotImplementedError("extra packages not yet implemented!")
 
         # 4. filter everything
         # - a. limit, b. exclude, [c. include (replaced with parents)]

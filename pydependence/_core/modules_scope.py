@@ -88,7 +88,7 @@ def _assert_no_duplicate_paths(*gs) -> None:
     for path, nodes in module_paths.items():
         if len(nodes) > 1:
             raise DuplicateModulePathsError(
-                f"Duplicate module paths found: {path}, modules: {sorted(nodes)}, search paths and package paths probably overlap / conflict!"
+                f"Duplicate module paths found: {repr(path)}, modules: {sorted(nodes)}, search paths and package paths probably overlap / conflict!"
             )
 
 

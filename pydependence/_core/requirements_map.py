@@ -430,12 +430,16 @@ class RequirementsMapper:
         *,
         requirements_env: "Optional[str]" = None,
         strict: bool = False,
+        raw: List[str] = None,
     ) -> "Dict[str, ReqInfoSources]":
         """
         Map imports to requirements, returning the imports grouped by the requirement.
 
         :raises NoConfiguredRequirementMappingError: if no requirement is found for an import, but only if strict mode is enabled, and after all imports have been processed so that pretty error messages can be generated.
         """
+        if raw:
+            raise NotImplementedError("raw imports are not yet supported, TODO!!!")
+
         # group imports by requirement
         requirements: "Dict[str, ReqInfoSources]" = dict()
         errors = []
@@ -487,6 +491,7 @@ class RequirementsMapper:
         *,
         requirements_env: "Optional[str]" = None,
         strict: bool = False,
+        raw: List[str] = None,
     ) -> "MappedRequirements":
         """
         :raises NoConfiguredRequirementMappingError: if no requirement is found for any import, but only if strict mode is enabled.
@@ -498,6 +503,7 @@ class RequirementsMapper:
                 imports,
                 requirements_env=requirements_env,
                 strict=strict,
+                raw=raw,
             )
         )
 
