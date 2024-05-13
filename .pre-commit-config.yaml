@@ -28,6 +28,25 @@ repos:
       - id: black
         args: ["--verbose", "--target-version=py39"]
 
+  # local repo
+  - repo: local
+    hooks:
+      - id: pydependence
+        name: PyDependence
+        description: Generate dependencies for your project using the python AST.
+        language: python
+        always_run: true
+        verbose: true
+        entry: python3 -m pydependence.__main__
+        files: ^pyproject\.toml$
+        language_version: "3.9"
+        additional_dependencies:
+          - 'pydantic==2.*'
+          - 'packaging'
+          - 'networkx'
+          - 'stdlib_list'
+          - 'tomlkit'
+
   # - repo: https://github.com/nmichlo/pydependence
   #   # rev: v0.2.0
   #   hooks:
