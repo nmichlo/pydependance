@@ -1,0 +1,78 @@
+[tool.pydependence]
+default_root = "."
+default_resolve_rules = {visit_lazy=false, exclude_unvisited=true, exclude_in_search_space=true, exclude_builtins=true, strict_requirements_map=false}
+default_scope_rules = {unreachable_mode="keep"}
+
+# global allowed package versions & version to import map
+versions = [
+#    "networkx",
+#    "pydantic>=2.0.0",
+#    {requirement="pydantic<2.0.0,>=1.0.0", env='legacy'},
+#    "stdlib_list",
+#    "tomlkit",
+#    "packaging",
+    {requirement="asdf", import="B.*,extern_a1,extern_a2,extern_a3i,extern_a4i"},
+]
+
+# collections of outputs that will be generated
+resolvers = [
+    {output_mode='dependencies', scope='all'},
+    {output_mode='optional-dependencies', scope='all', output_name='all', visit_lazy=true},
+]
+
+# collections of packages and dependencies that will then be resolved.
+[[tool.pydependence.scopes]]
+name = "A"
+pkg_paths = "./A"
+
+[[tool.pydependence.scopes]]
+name = "all"
+search_paths = "."
+
+[[tool.pydependence.scopes]]
+name = "A_limited"
+parents = ["A"]
+limit = "A.a3"
+
+# >>> RESOLVED DEPENDENCIES <<< #
+[project]
+
+dependencies = [
+    # [AUTOGEN] by pydependence **DO NOT EDIT** [AUTOGEN]
+    "asdf",
+    # ← A.a1
+    # ← A.a2
+    # ← A.a3.a3i
+    # ← A.a4.a4i
+    "extern_C",
+    # ← C
+    "foo",
+    # ← t_ast_parser
+    "package",
+    # ← t_ast_parser
+]
+
+# >>> RESOLVED OPTIONAL DEPENDENCIES <<< #
+[project.optional-dependencies]
+
+all = [
+    # [AUTOGEN] by pydependence **DO NOT EDIT** [AUTOGEN]
+    "asdf",
+    # ← A.a1
+    # ← A.a2
+    # ← A.a3.a3i
+    # ← A.a4.a4i
+    # ← t_ast_parser
+    "buzz",
+    # ← t_ast_parser
+    "extern_C",
+    # ← C
+    "extern_b1",
+    # ← B.b1
+    "extern_b2",
+    # ← B.b2
+    "foo",
+    # ← t_ast_parser
+    "package",
+    # ← t_ast_parser
+]
