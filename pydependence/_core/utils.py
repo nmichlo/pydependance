@@ -21,12 +21,9 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE  #
 # SOFTWARE.                                                                      #
 # ============================================================================== #
+
 from pathlib import Path
 from typing import List, Union
-
-import tomlkit
-import tomlkit.items
-import tomlkit.toml_document
 
 # ========================================================================= #
 # AST IMPORT PARSER                                                         #
@@ -91,6 +88,10 @@ def apply_root_to_path_str(root: "Union[str, Path]", path: "Union[str, Path]") -
 def load_toml_document(
     path: "Union[str, Path]",
 ) -> "tomlkit.toml_document.TOMLDocument":
+    import tomlkit
+    import tomlkit.items
+    import tomlkit.toml_document
+
     path = Path(path)
     if not path.name.endswith(".toml"):
         raise ValueError(f"path is not a .toml file: {path}")
@@ -127,6 +128,10 @@ def toml_file_replace_array(
     keys: "List[str]",
     array: "tomlkit.items.Array",
 ):
+    import tomlkit
+    import tomlkit.items
+    import tomlkit.toml_document
+
     # TODO: this needs multiple loads and writes if we are modifying multiple arrays
     #       which is not ideal... but it is a simple solution for now.
 

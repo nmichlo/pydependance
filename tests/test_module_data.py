@@ -25,9 +25,8 @@
 from pathlib import Path
 
 import pytest
-import tomlkit
 
-from pydependence._cli import PyprojectToml, pydeps
+from pydependence._cli import pydeps
 from pydependence._core.module_data import ModuleMetadata
 from pydependence._core.module_imports_ast import (
     ImportSourceEnum,
@@ -1191,6 +1190,7 @@ def test_toml_array_gen(mapper: RequirementsMapper):
 
 
 def test_pydeps_cli():
+    import tomlkit
 
     TARGET_PROJECT_DEPS = [
         "asdf",
