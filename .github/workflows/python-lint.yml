@@ -19,8 +19,8 @@ jobs:
         path: ~/.cache/pre-commit
         key: ${{ runner.os }}-pre-commit-${{ hashFiles('.pre-commit-config.yaml') }}
 
+    # make sure to also update `pyproject.toml` with the same requirements
     - id: install-requirements
-      # make sure to also update `pyproject.toml` with the same requirements
       run: pip install "pre-commit~=3.7.0"
 
     - name: pre-commit
