@@ -157,7 +157,7 @@ class ManualSource:
         self.orig_name = orig_name
 
     def __str__(self):
-        return f"<raw: {self.orig_name}>"
+        return f"<manual: {self.orig_name}>"
 
     def __repr__(self):
         return f"{self.__class__.__name__}({self.orig_name})"

@@ -64,15 +64,15 @@ all = [
     # ← A.a2
     # ← A.a3.a3i
     # ← A.a4.a4i
-    # ← t_ast_parser
-    "buzz",
-    # ← t_ast_parser
+    # ← [L] t_ast_parser
+    "buzz", # [L]
+    # ← [L] t_ast_parser
     "extern_C",
     # ← C
-    "extern_b1",
-    # ← B.b1
-    "extern_b2",
-    # ← B.b2
+    "extern_b1", # [L]
+    # ← [L] B.b1
+    "extern_b2", # [L]
+    # ← [L] B.b2
     "foo",
     # ← t_ast_parser
     "package",
@@ -80,13 +80,13 @@ all = [
 ]
 test = [
     # [AUTOGEN] by pydependence resolver 'test' **DO NOT EDIT** [AUTOGEN]
-    "pytest",
-    # ← <raw: pytest>
-    "pytest-cov",
-    # ← <raw: pytest-cov>
+    "pytest", # [M]
+    # ← <manual: pytest>
+    "pytest-cov", # [M]
+    # ← <manual: pytest-cov>
 ]
 dev = [
     # [AUTOGEN] by pydependence resolver 'dev' **DO NOT EDIT** [AUTOGEN]
-    "pre-commit",
-    # ← <raw: pre-commit>
+    "pre-commit", # [M]
+    # ← <manual: pre-commit>
 ]
