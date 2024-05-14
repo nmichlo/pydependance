@@ -31,6 +31,7 @@ from pydependence._core.module_data import ModuleMetadata
 from pydependence._core.module_imports_ast import (
     ImportSourceEnum,
     LocImportInfo,
+    ManualImportInfo,
     load_imports_from_module_info,
 )
 from pydependence._core.module_imports_loader import (
@@ -51,6 +52,7 @@ from pydependence._core.modules_scope import (
     _find_modules,
 )
 from pydependence._core.requirements_map import (
+    DEFAULT_REQUIREMENTS_ENV,
     ImportMatcherBase,
     ImportMatcherGlob,
     ImportMatcherScope,
@@ -851,6 +853,7 @@ def mapper():
                 ReqMatcher("glob_extern", ImportMatcherGlob("extern_C.*")),
                 # purposely wrong, correct is `extern_a4i`
                 ReqMatcher("glob_extern_WRONG", ImportMatcherGlob("extern_a4.*")),
+                ReqMatcher("glob_manual1", ImportMatcherGlob("manual1.*")),
             ],
             "asdf": [
                 ReqMatcher("glob_extern", ImportMatcherGlob("extern_a4i.*")),
@@ -1186,6 +1189,44 @@ def test_toml_array_gen(mapper: RequirementsMapper):
         "    # ← A.a3.a3i\n"
         "    # ← A.a4.a4i\n"
         "    # ← C\n"
+        '    "package",\n'
+        "    # ← t_ast_parser\n"
+        "]"
+    )
+
+    # >>> OUTPUT REQUIREMENTS WITH MANUAL ADDITIONS <<< #
+
+    # update!
+    mapped = mapper.generate_output_requirements(
+        imports
+        + [
+            ManualImportInfo.from_target("manual2_no_match"),
+            ManualImportInfo.from_target("manual1"),
+        ],
+        requirements_env="asdf",
+    )
+
+    # NOTE: bug in tomlkit prevents indents from being applied to comments when array is not in a table?
+    assert mapped.as_toml_array(
+        notice=False,
+        sources=True,
+        sources_compact=False,
+        sources_roots=False,
+        indent_size=4,
+    ).as_string() == (
+        "[\n"
+        '    "foo",\n'
+        "    # ← t_ast_parser\n"
+        '    "glob_extern",\n'
+        "    # ← A.a1\n"
+        "    # ← A.a2\n"
+        "    # ← A.a3.a3i\n"
+        "    # ← A.a4.a4i\n"
+        "    # ← C\n"
+        '    "glob_manual1",\n'
+        "    # ← <raw: manual1>\n"
+        '    "manual2_no_match",\n'
+        "    # ← <raw: manual2_no_match>\n"
         '    "package",\n'
         "    # ← t_ast_parser\n"
         "]"

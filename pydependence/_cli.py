@@ -31,7 +31,7 @@ from typing import Annotated, Dict, List, Literal, Optional, Union
 import pydantic
 from packaging.requirements import Requirement
 
-from pydependence._core.module_imports_ast import ManualImportInfo
+from pydependence._core.module_imports_ast import ManualImportInfo, ManualSource
 from pydependence._core.modules_scope import (
     ModulesScope,
     RestrictMode,
@@ -131,7 +131,9 @@ class _Output(_ResolveRules, extra="forbid"):
             return self.scope
 
     def get_manual_imports(self):
-        return [ManualImportInfo(target=r) for r in self.raw]
+        if not self.raw:
+            return []
+        return [ManualImportInfo.from_target(r) for r in self.raw]
 
     def _write_requirements(self, mapped_requirements: OutMappedRequirements) -> None:
         raise NotImplementedError(

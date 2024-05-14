@@ -140,26 +140,47 @@ class ImportSourceEnum(str, Enum):
     # type_check = 'type_check'  # TODO
 
 
-MANUAL_IMPORT_SOURCE = "<manual>"
-
-
 @dataclasses.dataclass
 class BasicImportInfo:
     # target
     target: str
-    is_lazy: bool
-    # source
     source_name: str
+    is_lazy: bool
 
     @property
     def root_target(self) -> str:
         return self.target.split(".")[0]
 
 
+class ManualSource:
+    def __init__(self, orig_name: str):
+        self.orig_name = orig_name
+
+    def __str__(self):
+        return f"<raw: {self.orig_name}>"
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}({self.orig_name})"
+
+    def __eq__(self, other):
+        if isinstance(str, other):
+            return str(self) == other
+        elif isinstance(other, ManualSource):
+            return self.orig_name == other.orig_name
+        return False
+
+    def __hash__(self):
+        return hash(str(self))
+
+
 @dataclasses.dataclass
 class ManualImportInfo(BasicImportInfo):
-    source_name: Literal["<manual>"] = MANUAL_IMPORT_SOURCE
+    source_name: ManualSource
     is_lazy: Literal[False] = False
+
+    @classmethod
+    def from_target(cls, target: str) -> "ManualImportInfo":
+        return cls(target=target, source_name=ManualSource(target))
 
 
 @dataclasses.dataclass
