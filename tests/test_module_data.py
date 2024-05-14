@@ -549,6 +549,31 @@ def test_resolve_scope():
         "package": {"t_ast_parser": 1},
     }
 
+    scope_ast = ModulesScope()
+    scope_ast.add_modules_from_package_path(PKG_B)
+
+    # all
+    resolved = ScopeResolvedImports.from_scope(scope=scope_ast, visit_lazy=True)
+    assert resolved._get_targets_sources_counts() == {
+        "B.b2": {"B.b1": 1},
+        "C": {"B.b2": 2},
+        "extern_b1": {"B.b1": 1},
+        "extern_b2": {"B.b2": 1},
+    }
+
+    # lazy
+    resolved = ScopeResolvedImports.from_scope(scope=scope_ast, visit_lazy=False)
+    assert resolved._get_targets_sources_counts() == {"C": {"B.b2": 1}}
+
+    # lazy with re-add of visited modules
+    resolved = ScopeResolvedImports.from_scope(
+        scope=scope_ast, visit_lazy=False, re_add_lazy=True
+    )
+    assert resolved._get_targets_sources_counts() == {
+        "C": {"B.b2": 2},
+        "extern_b2": {"B.b2": 1},
+    }
+
 
 def test_resolve_across_scopes():
     scope_all = ModulesScope()

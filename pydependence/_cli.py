@@ -61,6 +61,7 @@ from pydependence._core.utils import (
 
 class _ResolveRules(pydantic.BaseModel, extra="forbid"):
     visit_lazy: Optional[bool] = None
+    re_add_lazy: Optional[bool] = None
     exclude_unvisited: Optional[bool] = None
     exclude_in_search_space: Optional[bool] = None
     exclude_builtins: Optional[bool] = None
@@ -70,6 +71,7 @@ class _ResolveRules(pydantic.BaseModel, extra="forbid"):
     def make_default_base_rules(cls):
         return _ResolveRules(
             visit_lazy=False,
+            re_add_lazy=False,
             exclude_unvisited=True,
             exclude_in_search_space=True,
             exclude_builtins=True,
@@ -78,12 +80,15 @@ class _ResolveRules(pydantic.BaseModel, extra="forbid"):
 
     def set_defaults(self, defaults: "_ResolveRules"):
         assert defaults.visit_lazy is not None
+        assert defaults.re_add_lazy is not None
         assert defaults.exclude_unvisited is not None
         assert defaults.exclude_in_search_space is not None
         assert defaults.exclude_builtins is not None
         assert defaults.strict_requirements_map is not None
         if self.visit_lazy is None:
             self.visit_lazy = defaults.visit_lazy
+        if self.re_add_lazy is None:
+            self.re_add_lazy = defaults.re_add_lazy
         if self.exclude_unvisited is None:
             self.exclude_unvisited = defaults.exclude_unvisited
         if self.exclude_in_search_space is None:
@@ -172,6 +177,7 @@ class _Output(_ResolveRules, extra="forbid"):
         return scope.resolve_imports(
             start_scope=start_scope,
             visit_lazy=self.visit_lazy,
+            re_add_lazy=self.re_add_lazy,
             exclude_unvisited=self.exclude_unvisited,
             exclude_in_search_space=self.exclude_in_search_space,
             exclude_builtins=self.exclude_builtins,
@@ -182,14 +188,17 @@ class _Output(_ResolveRules, extra="forbid"):
         loaded_scopes: "LoadedScopes",
         requirements_mapper: RequirementsMapper,
     ) -> None:
+        # 1. resolve imports
         resolved_imports = self.get_resolved_imports(loaded_scopes=loaded_scopes)
         manual_imports = self.get_manual_imports()
+        # 2. generate requirements
         mapped_requirements = requirements_mapper.generate_output_requirements(
             imports=resolved_imports + manual_imports,
             requirements_env=self.env,
             strict=self.strict_requirements_map,
             resolver_name=self.get_output_name(),
         )
+        # 3. write requirements
         self._write_requirements(
             mapped_requirements=mapped_requirements,
         )

@@ -127,6 +127,7 @@ def _resolve_scope_imports(
     scope: "ModulesScope",
     start_scope: "Optional[ModulesScope]",
     visit_lazy: bool,
+    re_add_lazy: bool,
 ) -> "Tuple[List[LocImportInfo], Set[str]]":
     if start_scope is None:
         start_scope = scope
@@ -150,7 +151,23 @@ def _resolve_scope_imports(
         imports.extend(edge_data.imports)
         visited.update([src, dst])
 
-    # 3. convert to datatype
+    # 3. re_add lazy imports
+    #    - when visit_lazy is False, all lazy imports are filtered out before BFS, this
+    #      means that we need to re-add them from the visited nodes.
+    if re_add_lazy and not visit_lazy:
+        import_graph = _construct_module_import_graph(scope=scope, visit_lazy=True)
+        for node in visited:
+            # get edges directed out of the node
+            for src, dst in import_graph.out_edges(node):
+                edge_data = _ImportsGraphEdgeData.from_graph_edge(
+                    import_graph, src, dst
+                )
+                # only add lazy imports, because these would have been filtered out
+                for imp in edge_data.imports:
+                    if imp.is_lazy:
+                        imports.append(imp)
+
+    # 4. convert to datatype
     # NOTE: ideally later on we would group these imports by `dst` or `target`. It is
     #       just easier to work with them this way for now.
     return imports, visited
@@ -176,6 +193,7 @@ class ScopeResolvedImports:
         scope: "ModulesScope",
         start_scope: "Optional[ModulesScope]" = None,
         visit_lazy: bool = True,
+        re_add_lazy: bool = False,
     ):
         if start_scope is None:
             start_scope = scope
@@ -184,6 +202,7 @@ class ScopeResolvedImports:
             scope=scope,
             start_scope=start_scope,
             visit_lazy=visit_lazy,
+            re_add_lazy=re_add_lazy,
         )
 
         return cls(

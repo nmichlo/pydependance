@@ -358,6 +358,7 @@ class ModulesScope:
         start_scope: "Optional[ModulesScope]" = None,
         *,
         visit_lazy: bool = True,
+        re_add_lazy: bool = False,
         exclude_unvisited: bool = True,
         exclude_in_search_space: bool = True,
         exclude_builtins: bool = True,
@@ -368,6 +369,7 @@ class ModulesScope:
             scope=self,
             start_scope=start_scope,
             visit_lazy=visit_lazy,
+            re_add_lazy=re_add_lazy,
         )
         resolved = resolved.get_filtered(
             exclude_unvisited=exclude_unvisited,  # not sure that this actually works?
