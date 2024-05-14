@@ -108,7 +108,7 @@ class OutputModeEnum(str, Enum):
 
 class _Output(_ResolveRules, extra="forbid"):
     # resolve
-    scope: str
+    scope: Optional[str] = None
     start_scope: Optional[str] = None
 
     # raw requirements / imports that are mapped
@@ -127,17 +127,53 @@ class _Output(_ResolveRules, extra="forbid"):
             return self.output_name
         elif self.start_scope is not None:
             return self.start_scope
-        else:
+        elif self.scope is not None:
             return self.scope
+        else:
+            raise ValueError(f"output_name cannot be determined, please set output_name, start_scope, or scope for: {self}")
 
     def get_manual_imports(self):
         if not self.raw:
             return []
         return [ManualImportInfo.from_target(r) for r in self.raw]
 
-    def _write_requirements(self, mapped_requirements: OutMappedRequirements) -> None:
-        raise NotImplementedError(
-            f"tried to write imports for {repr(self.get_output_name())}, write_imports not implemented for {self.__class__.__name__}"
+    @pydantic.model_validator(mode="after")
+    @classmethod
+    def _validate_model(cls, v):
+        if v.start_scope is not None:
+            if v.scope is None:
+                raise ValueError(f"start_scope is set, but scope is not set for: {v}")
+        return v
+
+    def get_resolved_imports(
+        self,
+        loaded_scopes: "LoadedScopes",
+    ):
+        if not self.scope:
+            return []
+        # * normal scope
+        if self.scope not in loaded_scopes:
+            raise ValueError(
+                f"scope {repr(self.scope)} does not exist, must be one of: {loaded_scopes.sorted_names}"
+            )
+        else:
+            scope = loaded_scopes[self.scope]
+        # * start scope
+        start_scope = None
+        if self.start_scope:
+            if self.start_scope not in loaded_scopes:
+                raise ValueError(
+                    f"start_scope {repr(self.start_scope)} does not exist, must be one of: {loaded_scopes.sorted_names}"
+                )
+            else:
+                start_scope = loaded_scopes[self.start_scope]
+        # * resolve imports
+        return scope.resolve_imports(
+            start_scope=start_scope,
+            visit_lazy=self.visit_lazy,
+            exclude_unvisited=self.exclude_unvisited,
+            exclude_in_search_space=self.exclude_in_search_space,
+            exclude_builtins=self.exclude_builtins,
         )
 
     def resolve_generate_and_write_requirements(
@@ -145,20 +181,21 @@ class _Output(_ResolveRules, extra="forbid"):
         loaded_scopes: "LoadedScopes",
         requirements_mapper: RequirementsMapper,
     ) -> None:
-        resolved_imports = loaded_scopes[self.scope].resolve_imports(
-            start_scope=loaded_scopes[self.start_scope] if self.start_scope else None,
-            visit_lazy=self.visit_lazy,
-            exclude_unvisited=self.exclude_unvisited,
-            exclude_in_search_space=self.exclude_in_search_space,
-            exclude_builtins=self.exclude_builtins,
-        )
+        resolved_imports = self.get_resolved_imports(loaded_scopes=loaded_scopes)
+        manual_imports = self.get_manual_imports()
         mapped_requirements = requirements_mapper.generate_output_requirements(
-            imports=resolved_imports + self.get_manual_imports(),
+            imports=resolved_imports + manual_imports,
             requirements_env=self.env,
             strict=self.strict_requirements_map,
+            resolver_name=self.get_output_name(),
         )
         self._write_requirements(
             mapped_requirements=mapped_requirements,
+        )
+
+    def _write_requirements(self, mapped_requirements: OutMappedRequirements) -> None:
+        raise NotImplementedError(
+            f"tried to write imports for {repr(self.get_output_name())}, write_imports not implemented for {self.__class__.__name__}"
         )
 
 
@@ -433,7 +470,7 @@ class LoadedScopes:
     def __getitem__(self, item: str) -> ModulesScope:
         if item not in self._scopes:
             raise UndefinedScopeError(
-                f"scope {repr(item)} is not defined, must be one of: {sorted(self._scopes.keys())}"
+                f"scope {repr(item)} is not defined, must be one of: {self.sorted_names}"
             )
         return self._scopes[item]
 
@@ -442,6 +479,10 @@ class LoadedScopes:
         if key in self:
             raise ValueError(f"scope {repr(key)} is already defined!")
         self._scopes[key] = value
+
+    @property
+    def sorted_names(self) -> List[str]:
+        return sorted(self._scopes.keys())
 
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
@@ -602,13 +643,16 @@ class PydependenceCfg(pydantic.BaseModel, extra="forbid"):
 
         # check that the scopes exists
         for output in self.resolvers:
+            if output.scope is None:
+                assert output.start_scope is None
+                continue
             if output.scope not in loaded_scopes:
                 raise ValueError(
-                    f"output scope {repr(output.scope)} does not exist! Are you sure it has been defined?"
+                    f"output scope {repr(output.scope)} does not exist! Are you sure it has been defined? Available scopes: {loaded_scopes.sorted_names}"
                 )
             if output.start_scope and output.start_scope not in loaded_scopes:
                 raise ValueError(
-                    f"output start_scope {repr(output.start_scope)} does not exist! Are you sure it has been defined?"
+                    f"output start_scope {repr(output.start_scope)} does not exist! Are you sure it has been defined? Available scopes: {loaded_scopes.sorted_names}"
                 )
 
         # make the mapper

@@ -190,6 +190,7 @@ class MappedRequirement:
 @dataclasses.dataclass
 class MappedRequirements:
     requirements: Dict[str, MappedRequirement]  # k == v.requirement
+    resolver_name: Optional[str] = None
 
     def get_sorted_requirements(self) -> List[MappedRequirement]:
         return sorted(
@@ -202,7 +203,8 @@ class MappedRequirements:
             requirements=[
                 requirement_info.to_output_requirement()
                 for requirement_info in self.get_sorted_requirements()
-            ]
+            ],
+            resolver_name=self.resolver_name,
         )
 
 
@@ -373,6 +375,7 @@ class RequirementsMapper:
         requirements_env: "Optional[str]" = None,
         strict: bool = False,
         raw: List[str] = None,
+        resolver_name: Optional[str] = None,
     ) -> "MappedRequirements":
         """
         Map imports to requirements, returning the imports grouped by the requirement.
@@ -383,7 +386,10 @@ class RequirementsMapper:
             raise NotImplementedError("raw imports are not yet supported, TODO!!!")
 
         # group imports by requirement
-        r = MappedRequirements(requirements={})
+        r = MappedRequirements(
+            requirements={},
+            resolver_name=resolver_name,
+        )
         errors = []
         for imp in imports:
             # 1. map requirements
@@ -454,6 +460,7 @@ class RequirementsMapper:
         *,
         requirements_env: "Optional[str]" = None,
         strict: bool = False,
+        resolver_name: Optional[str] = None,
     ) -> "OutMappedRequirements":
         """
         :raises NoConfiguredRequirementMappingError: if no requirement is found for any import, but only if strict mode is enabled.
@@ -463,6 +470,7 @@ class RequirementsMapper:
             imports,
             requirements_env=requirements_env,
             strict=strict,
+            resolver_name=resolver_name,
         )
         # 2. generate output requirements lists
         return r.to_output_requirements()

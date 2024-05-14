@@ -18,6 +18,8 @@ versions = [
 resolvers = [
     {output_mode='dependencies', scope='all'},
     {output_mode='optional-dependencies', scope='all', output_name='all', visit_lazy=true},
+    {output_mode='optional-dependencies', output_name='test', raw=['pytest', 'pytest-cov']},
+    {output_mode='optional-dependencies', output_name='dev', raw=['pre-commit']},
 ]
 
 # collections of packages and dependencies that will then be resolved.
@@ -38,7 +40,7 @@ limit = "A.a3"
 [project]
 
 dependencies = [
-    # [AUTOGEN] by pydependence **DO NOT EDIT** [AUTOGEN]
+    # [AUTOGEN] by pydependence resolver 'all' **DO NOT EDIT** [AUTOGEN]
     "asdf",
     # ← A.a1
     # ← A.a2
@@ -56,7 +58,7 @@ dependencies = [
 [project.optional-dependencies]
 
 all = [
-    # [AUTOGEN] by pydependence **DO NOT EDIT** [AUTOGEN]
+    # [AUTOGEN] by pydependence resolver 'all' **DO NOT EDIT** [AUTOGEN]
     "asdf",
     # ← A.a1
     # ← A.a2
@@ -75,4 +77,16 @@ all = [
     # ← t_ast_parser
     "package",
     # ← t_ast_parser
+]
+test = [
+    # [AUTOGEN] by pydependence resolver 'test' **DO NOT EDIT** [AUTOGEN]
+    "pytest",
+    # ← <raw: pytest>
+    "pytest-cov",
+    # ← <raw: pytest-cov>
+]
+dev = [
+    # [AUTOGEN] by pydependence resolver 'dev' **DO NOT EDIT** [AUTOGEN]
+    "pre-commit",
+    # ← <raw: pre-commit>
 ]

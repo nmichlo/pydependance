@@ -1,5 +1,5 @@
 import dataclasses
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 # ========================================================================= #
 # REQUIREMENTS MAPPER                                                       #
@@ -47,8 +47,17 @@ class OutMappedRequirement:
 @dataclasses.dataclass
 class OutMappedRequirements:
     requirements: List[OutMappedRequirement]
+    resolver_name: Optional[str] = None
 
     _AUTOGEN_NOTICE = "[AUTOGEN] by pydependence **DO NOT EDIT** [AUTOGEN]"
+    _AUTOGEN_NOTICE_NAMED = "[AUTOGEN] by pydependence resolver {resolver_name} **DO NOT EDIT** [AUTOGEN]"
+
+    @property
+    def autogen_notice(self) -> str:
+        if self.resolver_name is None:
+            return self._AUTOGEN_NOTICE
+        else:
+            return self._AUTOGEN_NOTICE_NAMED.format(resolver_name=repr(self.resolver_name))
 
     def _get_debug_struct(self) -> "List[Tuple[str, List[str]]]":
         return [
@@ -66,7 +75,7 @@ class OutMappedRequirements:
     ) -> str:
         lines = []
         if notice:
-            lines.append(self._AUTOGEN_NOTICE)
+            lines.append(self.autogen_notice)
         for req in self.requirements:
             # add requirement
             lines.append(f"{req.requirement}")
@@ -97,7 +106,7 @@ class OutMappedRequirements:
         if notice:
             array.add_line(
                 indent=" " * (indent_size * 1),
-                comment=self._AUTOGEN_NOTICE,
+                comment=self.autogen_notice,
             )
         for req in self.requirements:
             # add requirement & compact sources
