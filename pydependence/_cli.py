@@ -596,6 +596,8 @@ class PydependenceCfg(pydantic.BaseModel, extra="forbid"):
                     output.output_file = s(pyproject_path)
 
         # also apply all default write modes
+        self.default_scope_rules.set_defaults(_ScopeRules.make_default_base_rules())
+        self.default_resolve_rules.set_defaults(_ResolveRules.make_default_base_rules())
         for scope in self.scopes:
             scope.set_defaults(self.default_scope_rules)
         for output in self.resolvers:

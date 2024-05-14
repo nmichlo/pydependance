@@ -150,6 +150,10 @@ def _resolve_scope_imports(
         edge_data = _ImportsGraphEdgeData.from_graph_edge(import_graph, src, dst)
         imports.extend(edge_data.imports)
         visited.update([src, dst])
+    # - dfs may not add all nodes, but these should be visited too
+    for node in start_scope.iter_modules():
+        if import_graph.has_node(node):
+            visited.add(node)
 
     # 3. re_add lazy imports
     #    - when visit_lazy is False, all lazy imports are filtered out before BFS, this
