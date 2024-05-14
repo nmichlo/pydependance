@@ -28,7 +28,11 @@ import warnings
 from typing import TYPE_CHECKING, Dict, List, NamedTuple, Optional, Set, Union
 
 from pydependence._core.builtin import BUILTIN_MODULE_NAMES
-from pydependence._core.module_imports_ast import BasicImportInfo, LocImportInfo
+from pydependence._core.module_imports_ast import (
+    BasicImportInfo,
+    LocImportInfo,
+    ManualImportInfo,
+)
 from pydependence._core.requirements_out import (
     OutMappedRequirement,
     OutMappedRequirements,
@@ -162,6 +166,10 @@ class MappedRequirementSource:
     def to_output_requirement_source(self):
         return OutMappedRequirementSource(
             source_module=self.source_module,
+            is_lazy=all(imp.is_lazy for imp in self.source_module_imports),
+            is_manual=any(
+                isinstance(imp, ManualImportInfo) for imp in self.source_module_imports
+            ),
         )
 
 
@@ -169,9 +177,6 @@ class MappedRequirementSource:
 class MappedRequirement:
     requirement: str  # mapped name
     sources: Dict[str, MappedRequirementSource]  # k == v.source_module
-    # extra
-    is_mapped: bool
-    is_lazy: bool
 
     def get_sorted_sources(self) -> List[MappedRequirementSource]:
         return sorted(self.sources.values(), key=lambda x: x.source_module)
@@ -183,7 +188,6 @@ class MappedRequirement:
                 source.to_output_requirement_source()
                 for source in self.get_sorted_sources()
             ],
-            is_lazy=self.is_lazy,
         )
 
 
@@ -422,8 +426,6 @@ class RequirementsMapper:
                 req_group = MappedRequirement(
                     requirement=req_info.requirement,
                     sources={},
-                    is_mapped=req_info.is_mapped,
-                    is_lazy=True,
                 )
                 r.requirements[req_info.requirement] = req_group
 
@@ -437,7 +439,6 @@ class RequirementsMapper:
                 req_group.sources[imp.source_name] = req_group_source
 
             # - append import to source & update
-            req_group.is_lazy &= imp.is_lazy
             req_group_source.source_module_imports.append(imp)
 
         if errors:

@@ -130,7 +130,9 @@ class _Output(_ResolveRules, extra="forbid"):
         elif self.scope is not None:
             return self.scope
         else:
-            raise ValueError(f"output_name cannot be determined, please set output_name, start_scope, or scope for: {self}")
+            raise ValueError(
+                f"output_name cannot be determined, please set output_name, start_scope, or scope for: {self}"
+            )
 
     def get_manual_imports(self):
         if not self.raw:

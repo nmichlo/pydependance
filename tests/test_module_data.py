@@ -1223,9 +1223,9 @@ def test_toml_array_gen(mapper: RequirementsMapper):
         "    # ← A.a3.a3i\n"
         "    # ← A.a4.a4i\n"
         "    # ← C\n"
-        '    "glob_manual1",\n'
+        '    "glob_manual1", # [M]\n'
         "    # ← <raw: manual1>\n"
-        '    "manual2_no_match",\n'
+        '    "manual2_no_match", # [M]\n'
         "    # ← <raw: manual2_no_match>\n"
         '    "package",\n'
         "    # ← t_ast_parser\n"
