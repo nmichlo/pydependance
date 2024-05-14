@@ -42,16 +42,16 @@ limit = "A.a3"
 dependencies = [
     # [AUTOGEN] by pydependence resolver 'all' **DO NOT EDIT** [AUTOGEN]
     "asdf",
-    # ← A.a1
-    # ← A.a2
-    # ← A.a3.a3i
-    # ← A.a4.a4i
+    #     ← A.a1
+    #     ← A.a2
+    #     ← A.a3.a3i
+    #     ← A.a4.a4i
     "extern_C",
-    # ← C
+    #     ← C
     "foo",
-    # ← t_ast_parser
+    #     ← t_ast_parser
     "package",
-    # ← t_ast_parser
+    #     ← t_ast_parser
 ]
 
 # >>> RESOLVED OPTIONAL DEPENDENCIES <<< #
@@ -60,33 +60,33 @@ dependencies = [
 all = [
     # [AUTOGEN] by pydependence resolver 'all' **DO NOT EDIT** [AUTOGEN]
     "asdf",
-    # ← A.a1
-    # ← A.a2
-    # ← A.a3.a3i
-    # ← A.a4.a4i
-    # ← [L] t_ast_parser
+    #     ← A.a1
+    #     ← A.a2
+    #     ← A.a3.a3i
+    #     ← A.a4.a4i
+    #     ← [L] t_ast_parser
     "buzz", # [L]
-    # ← [L] t_ast_parser
+    #     ← [L] t_ast_parser
     "extern_C",
-    # ← C
+    #     ← C
     "extern_b1", # [L]
-    # ← [L] B.b1
+    #     ← [L] B.b1
     "extern_b2", # [L]
-    # ← [L] B.b2
+    #     ← [L] B.b2
     "foo",
-    # ← t_ast_parser
+    #     ← t_ast_parser
     "package",
-    # ← t_ast_parser
+    #     ← t_ast_parser
 ]
 test = [
     # [AUTOGEN] by pydependence resolver 'test' **DO NOT EDIT** [AUTOGEN]
     "pytest", # [M]
-    # ← <manual: pytest>
+    #     ← <manual: pytest>
     "pytest-cov", # [M]
-    # ← <manual: pytest-cov>
+    #     ← <manual: pytest-cov>
 ]
 dev = [
     # [AUTOGEN] by pydependence resolver 'dev' **DO NOT EDIT** [AUTOGEN]
     "pre-commit", # [M]
-    # ← <manual: pre-commit>
+    #     ← <manual: pre-commit>
 ]
