@@ -161,6 +161,7 @@ class OutMappedRequirements:
         indent_size: int = 4,
     ):
         import tomlkit
+        import tomlkit.container
         import tomlkit.items
 
         # create table
@@ -191,9 +192,20 @@ class OutMappedRequirements:
                 enabled=sources and not sources_compact,
                 roots=sources_roots,
             ):
+                # Add line has a bug where it doesn't add the correct indentation before the comment
+                # - so we instead add padding after the `#`
+                # `array.add_line(indent=f"{' ' * (indent_size * 1)}, comment=f"{src_info.anno_str}")`
                 array.add_line(
-                    indent=" " * (indent_size * 2), comment=src_info.anno_str
+                    indent="", comment=f"{' ' * (indent_size * 1)}{src_info.anno_str}"
                 )
+                # NOTE: While this does not properly handle commas between lines ...
+                # array.append(tomlkit.items.Comment(tomlkit.container.Trivia(
+                #     indent=" " * (indent_size * 1),
+                #     comment_ws="",
+                #     comment=f"# {src_info.anno_str}\n",
+                #     trail="",
+                # )))
+
         if self.requirements or notice:
             array.add_line(indent="")
         # done!

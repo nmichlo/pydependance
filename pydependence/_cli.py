@@ -41,7 +41,6 @@ from pydependence._core.modules_scope import (
 from pydependence._core.requirements_map import (
     DEFAULT_REQUIREMENTS_ENV,
     ImportMatcherBase,
-    ImportMatcherGlob,
     ImportMatcherGlobs,
     ImportMatcherScope,
     ReqMatcher,
@@ -285,7 +284,7 @@ class CfgVersion(pydantic.BaseModel, extra="forbid", arbitrary_types_allowed=Tru
 
     @property
     def package(self) -> str:
-        return self.parsed_requirement.name
+        return self.parsed_requirement.name.replace("-", "_")
 
     @classmethod
     def from_string(cls, requirement: str):

@@ -1153,7 +1153,7 @@ def test_toml_array_gen(mapper: RequirementsMapper):
         "]"
     )
 
-    # NOTE: bug in tomlkit prevents indents from being applied to comments when array is not in a table?
+    # NOTE: bug in tomlkit with applying indents. Adding comments manually helps, but results in commas at end of comments
     assert mapped.as_toml_array(
         notice=False,
         sources=True,
@@ -1163,16 +1163,16 @@ def test_toml_array_gen(mapper: RequirementsMapper):
     ).as_string() == (
         "[\n"
         '    "foo",\n'
-        "    # ← t_ast_parser\n"
+        "    #     ← t_ast_parser\n"
         '    "glob_extern",\n'
-        "    # ← A\n"
-        "    # ← C\n"
+        "    #     ← A\n"
+        "    #     ← C\n"
         '    "package",\n'
-        "    # ← t_ast_parser\n"
+        "    #     ← t_ast_parser\n"
         "]"
     )
 
-    # NOTE: bug in tomlkit prevents indents from being applied to comments when array is not in a table?
+    # NOTE: bug in tomlkit with applying indents. Adding comments manually helps, but results in commas at end of comments
     assert mapped.as_toml_array(
         notice=False,
         sources=True,
@@ -1182,15 +1182,15 @@ def test_toml_array_gen(mapper: RequirementsMapper):
     ).as_string() == (
         "[\n"
         '    "foo",\n'
-        "    # ← t_ast_parser\n"
+        "    #     ← t_ast_parser\n"
         '    "glob_extern",\n'
-        "    # ← A.a1\n"
-        "    # ← A.a2\n"
-        "    # ← A.a3.a3i\n"
-        "    # ← A.a4.a4i\n"
-        "    # ← C\n"
+        "    #     ← A.a1\n"
+        "    #     ← A.a2\n"
+        "    #     ← A.a3.a3i\n"
+        "    #     ← A.a4.a4i\n"
+        "    #     ← C\n"
         '    "package",\n'
-        "    # ← t_ast_parser\n"
+        "    #     ← t_ast_parser\n"
         "]"
     )
 
@@ -1206,7 +1206,7 @@ def test_toml_array_gen(mapper: RequirementsMapper):
         requirements_env="asdf",
     )
 
-    # NOTE: bug in tomlkit prevents indents from being applied to comments when array is not in a table?
+    # NOTE: bug in tomlkit with applying indents. Adding comments manually helps, but results in commas at end of comments
     assert mapped.as_toml_array(
         notice=False,
         sources=True,
@@ -1216,19 +1216,19 @@ def test_toml_array_gen(mapper: RequirementsMapper):
     ).as_string() == (
         "[\n"
         '    "foo",\n'
-        "    # ← t_ast_parser\n"
+        "    #     ← t_ast_parser\n"
         '    "glob_extern",\n'
-        "    # ← A.a1\n"
-        "    # ← A.a2\n"
-        "    # ← A.a3.a3i\n"
-        "    # ← A.a4.a4i\n"
-        "    # ← C\n"
+        "    #     ← A.a1\n"
+        "    #     ← A.a2\n"
+        "    #     ← A.a3.a3i\n"
+        "    #     ← A.a4.a4i\n"
+        "    #     ← C\n"
         '    "glob_manual1", # [M]\n'
-        "    # ← <manual: manual1>\n"
+        "    #     ← <manual: manual1>\n"
         '    "manual2_no_match", # [M]\n'
-        "    # ← <manual: manual2_no_match>\n"
+        "    #     ← <manual: manual2_no_match>\n"
         '    "package",\n'
-        "    # ← t_ast_parser\n"
+        "    #     ← t_ast_parser\n"
         "]"
     )
 
