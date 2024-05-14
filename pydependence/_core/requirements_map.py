@@ -25,11 +25,15 @@ import abc
 import dataclasses
 import functools
 import warnings
-from collections import defaultdict
-from typing import TYPE_CHECKING, Dict, List, NamedTuple, Optional, Set, Tuple, Union
+from typing import TYPE_CHECKING, Dict, List, NamedTuple, Optional, Set, Union
 
 from pydependence._core.builtin import BUILTIN_MODULE_NAMES
-from pydependence._core.module_imports_ast import LocImportInfo
+from pydependence._core.module_imports_ast import BasicImportInfo, LocImportInfo
+from pydependence._core.requirements_out import (
+    OutMappedRequirement,
+    OutMappedRequirements,
+    OutMappedRequirementSource,
+)
 
 if TYPE_CHECKING:
     from pydependence._core.modules_scope import ModulesScope
@@ -134,146 +138,72 @@ class ImportMatcherGlobs(ImportMatcherBase):
 
 
 # ========================================================================= #
+# REQUIREMENTS MAPPER (INFO)                                                #
+# ========================================================================= #
+
+
+class MappedRequirementInfo(NamedTuple):
+    requirement: str
+    is_mapped: bool
+    original_name: str
+
+
+# ========================================================================= #
 # REQUIREMENTS MAPPER (INTERMEDIATE)                                        #
-# ========================================================================= #
-
-
-# similar data structures to below, but nested differently. Could in theory be merged,
-# but not really worth it for now. The below is more intended for user output, while
-# this is more intended for actual information and for example isn't sorted and doesn't
-# contain helper functions.
-
-
-class ReqInfo(NamedTuple):
-    requirement: str
-    has_mapping: bool
-
-
-@dataclasses.dataclass
-class ReqInfoSources:
-    requirement: str
-    has_mapping: bool
-    sources: Dict[str, List[LocImportInfo]]
-
-
-# ========================================================================= #
-# REQUIREMENTS MAPPER                                                       #
+# # similar data structures to output, but with more information
 # ========================================================================= #
 
 
 @dataclasses.dataclass
-class MappedRequirementSourceModule:
+class MappedRequirementSource:
     source_module: str
-    source_module_imports: List[LocImportInfo]
+    source_module_imports: List[BasicImportInfo]
 
-    @property
-    def source_module_root(self):
-        return self.source_module.split(".")[0]
+    def to_output_requirement_source(self):
+        return OutMappedRequirementSource(
+            source_module=self.source_module,
+        )
 
 
 @dataclasses.dataclass
 class MappedRequirement:
-    requirement: str
-    source_modules: List[MappedRequirementSourceModule]
+    requirement: str  # mapped name
+    sources: Dict[str, MappedRequirementSource]  # k == v.source_module
+    # extra
+    is_mapped: bool
+    is_lazy: bool
 
-    def get_source_names(
-        self,
-        enabled: bool = True,
-        roots: bool = False,
-    ) -> "List[str]":
-        if enabled:
-            return sorted(
-                {
-                    src.source_module_root if roots else src.source_module
-                    for src in self.source_modules
-                }
-            )
-        else:
-            return []
+    def get_sorted_sources(self) -> List[MappedRequirementSource]:
+        return sorted(self.sources.values(), key=lambda x: x.source_module)
 
-    def get_sources_string(
-        self,
-        enabled: bool = True,
-        roots: bool = False,
-    ) -> str:
-        return ", ".join(self.get_source_names(enabled=enabled, roots=roots))
+    def to_output_requirement(self):
+        return OutMappedRequirement(
+            requirement=self.requirement,
+            sources=[
+                source.to_output_requirement_source()
+                for source in self.get_sorted_sources()
+            ],
+            is_lazy=self.is_lazy,
+        )
 
 
 @dataclasses.dataclass
 class MappedRequirements:
-    requirements: List[MappedRequirement]
+    requirements: Dict[str, MappedRequirement]  # k == v.requirement
 
-    _AUTOGEN_NOTICE = "[AUTOGEN] by pydependence **DO NOT EDIT** [AUTOGEN]"
+    def get_sorted_requirements(self) -> List[MappedRequirement]:
+        return sorted(
+            self.requirements.values(),
+            key=lambda x: x.requirement,
+        )
 
-    def _get_debug_struct(self) -> "List[Tuple[str, List[str]]]":
-        return [
-            (req.requirement, [src.source_module for src in req.source_modules])
-            for req in self.requirements
-        ]
-
-    def as_requirements_txt(
-        self,
-        notice: bool = True,
-        sources: bool = True,
-        sources_compact: bool = False,
-        sources_roots: bool = False,
-        indent_size: int = 4,
-    ) -> str:
-        lines = []
-        if notice:
-            lines.append(self._AUTOGEN_NOTICE)
-        for req in self.requirements:
-            # add requirement
-            lines.append(f"{req.requirement}")
-            # add compact sources
-            if sources:
-                if sources_compact:
-                    lines[-1] += f" # {req.get_sources_string(roots=sources_roots)}"
-                else:
-                    for src_name in req.get_source_names(roots=sources_roots):
-                        lines.append(f"{' '*indent_size*1}# ← {src_name}")
-        if self.requirements or notice:
-            lines.append("")
-        return "\n".join(lines)
-
-    def as_toml_array(
-        self,
-        notice: bool = True,
-        sources: bool = True,
-        sources_compact: bool = False,
-        sources_roots: bool = False,
-        indent_size: int = 4,
-    ):
-        import tomlkit
-        import tomlkit.items
-
-        # create table
-        array = tomlkit.array().multiline(True)
-        if notice:
-            array.add_line(
-                indent=" " * (indent_size * 1),
-                comment=self._AUTOGEN_NOTICE,
-            )
-        for req in self.requirements:
-            # add requirement & compact sources
-            array.add_line(
-                req.requirement,
-                indent=" " * (indent_size * 1),
-                comment=req.get_sources_string(
-                    enabled=sources and sources_compact,
-                    roots=sources_roots,
-                ),
-            )
-            # add extended sources
-            for src_name in req.get_source_names(
-                enabled=sources and not sources_compact,
-                roots=sources_roots,
-            ):
-                array.add_line(indent=" " * (indent_size * 2), comment=f"← {src_name}")
-        if self.requirements or notice:
-            array.add_line(indent="")
-        # done!
-        return array
+    def to_output_requirements(self):
+        return OutMappedRequirements(
+            requirements=[
+                requirement_info.to_output_requirement()
+                for requirement_info in self.get_sorted_requirements()
+            ]
+        )
 
 
 # ========================================================================= #
@@ -373,7 +303,7 @@ class RequirementsMapper:
         *,
         requirements_env: "Optional[str]" = None,
         strict: bool = False,
-    ) -> "ReqInfo":
+    ) -> "MappedRequirementInfo":
         """
         :raises NoConfiguredRequirementMappingError: if no requirement is found for an import and if strict mode is enabled.
         """
@@ -387,11 +317,19 @@ class RequirementsMapper:
                 )
             for rm in self._env_matchers[requirements_env]:
                 if rm.matcher.match(import_):
-                    return ReqInfo(rm.requirement, has_mapping=True)
+                    return MappedRequirementInfo(
+                        rm.requirement,
+                        is_mapped=True,
+                        original_name=import_,
+                    )
         # 2. take the default env
         for rm in self._env_matchers.get(DEFAULT_REQUIREMENTS_ENV, []):
             if rm.matcher.match(import_):
-                return ReqInfo(rm.requirement, has_mapping=True)
+                return MappedRequirementInfo(
+                    rm.requirement,
+                    is_mapped=True,
+                    original_name=import_,
+                )
         # 3. return the root
         if strict:
             raise NoConfiguredRequirementMappingError(
@@ -403,7 +341,11 @@ class RequirementsMapper:
             warnings.warn(
                 f"could not find a matching requirement for import: {repr(import_)}, returning the import root: {repr(root)} as the requirement"
             )
-            return ReqInfo(root, has_mapping=False)
+            return MappedRequirementInfo(
+                root,
+                is_mapped=False,
+                original_name=import_,  # TODO: or should this be root?
+            )
 
     def _get_joined_matchers(
         self,
@@ -424,14 +366,14 @@ class RequirementsMapper:
             ]
         )
 
-    def _group_imports_by_mapped_requirements(
+    def generate_mapped_requirements(
         self,
-        imports: "List[LocImportInfo]",
+        imports: "List[BasicImportInfo]",
         *,
         requirements_env: "Optional[str]" = None,
         strict: bool = False,
         raw: List[str] = None,
-    ) -> "Dict[str, ReqInfoSources]":
+    ) -> "MappedRequirements":
         """
         Map imports to requirements, returning the imports grouped by the requirement.
 
@@ -441,14 +383,22 @@ class RequirementsMapper:
             raise NotImplementedError("raw imports are not yet supported, TODO!!!")
 
         # group imports by requirement
-        requirements: "Dict[str, ReqInfoSources]" = dict()
+        r = MappedRequirements(requirements={})
         errors = []
         for imp in imports:
-            # map requirements
-            if imp.target in BUILTIN_MODULE_NAMES:
-                req_info = ReqInfo(imp.target, has_mapping=False)  # TODO: needed?
+            # 1. map requirements
+            if imp.target in BUILTIN_MODULE_NAMES:  # TODO: needed?
+                req_info = MappedRequirementInfo(
+                    imp.target,
+                    is_mapped=False,
+                    original_name=imp.target,
+                )
             elif imp.root_target in BUILTIN_MODULE_NAMES:
-                req_info = ReqInfo(imp.root_target, has_mapping=False)
+                req_info = MappedRequirementInfo(
+                    imp.root_target,
+                    is_mapped=False,
+                    original_name=imp.target,  # TODO: or should this be root?
+                )
             else:
                 try:
                     req_info = self.map_import_to_requirement_info(
@@ -459,17 +409,30 @@ class RequirementsMapper:
                 except NoConfiguredRequirementMappingError as e:
                     errors.append(e)
                     continue
-            # get or create group
-            req_group = requirements.get(req_info.requirement, None)
+
+            # 2. get or create requirement sources
+            req_group = r.requirements.get(req_info.requirement, None)
             if req_group is None:
-                req_group = ReqInfoSources(
+                req_group = MappedRequirement(
                     requirement=req_info.requirement,
                     sources={},
-                    has_mapping=req_info.has_mapping,  # TODO: might not be updated?
+                    is_mapped=req_info.is_mapped,
+                    is_lazy=True,
                 )
-                requirements[req_info.requirement] = req_group
-            # append source
-            req_group.sources.setdefault(imp.source_name, []).append(imp)
+                r.requirements[req_info.requirement] = req_group
+
+            # - get or create requirement source import
+            req_group_source = req_group.sources.get(imp.source_name, None)
+            if req_group_source is None:
+                req_group_source = MappedRequirementSource(
+                    source_module=imp.source_name,
+                    source_module_imports=[],
+                )
+                req_group.sources[imp.source_name] = req_group_source
+
+            # - append import to source & update
+            req_group.is_lazy &= imp.is_lazy
+            req_group_source.source_module_imports.append(imp)
 
         if errors:
             err_imports = {imp for e in errors for imp in e.imports}
@@ -482,56 +445,27 @@ class RequirementsMapper:
                 imports=err_imports,
             )
 
-        # shallow copy
-        return requirements
+        # done!
+        return r
 
-    def generate_requirements(
+    def generate_output_requirements(
         self,
-        imports: "List[LocImportInfo]",
+        imports: "List[BasicImportInfo]",
         *,
         requirements_env: "Optional[str]" = None,
         strict: bool = False,
-        raw: List[str] = None,
-    ) -> "MappedRequirements":
+    ) -> "OutMappedRequirements":
         """
         :raises NoConfiguredRequirementMappingError: if no requirement is found for any import, but only if strict mode is enabled.
         """
         # 1. map imports to requirements
-        # {requirement: {source: [import_info, ...], ...}, ...}
-        mapped_requirements_infos: "Dict[str, ReqInfoSources]" = (
-            self._group_imports_by_mapped_requirements(
-                imports,
-                requirements_env=requirements_env,
-                strict=strict,
-                raw=raw,
-            )
+        r = self.generate_mapped_requirements(
+            imports,
+            requirements_env=requirements_env,
+            strict=strict,
         )
-
-        # 2. generate requirements list
-        output_reqs = []
-        for requirement in sorted(mapped_requirements_infos.keys()):
-            # {source: [import_info, ...], ...}
-            mapped_requirement_info = mapped_requirements_infos[requirement]
-
-            # - generate requirement sources
-            source_modules = []
-            for source in sorted(mapped_requirement_info.sources.keys()):
-                sources = mapped_requirement_info.sources[source]
-                write_src = MappedRequirementSourceModule(
-                    source_module=source,
-                    source_module_imports=sources,
-                )
-                source_modules.append(write_src)
-
-            # - generate requirement
-            out_req = MappedRequirement(
-                requirement=requirement,
-                source_modules=source_modules,
-            )
-            output_reqs.append(out_req)
-
-        # done!
-        return MappedRequirements(requirements=output_reqs)
+        # 2. generate output requirements lists
+        return r.to_output_requirements()
 
 
 # ========================================================================= #

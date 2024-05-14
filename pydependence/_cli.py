@@ -31,6 +31,7 @@ from typing import Annotated, Dict, List, Literal, Optional, Union
 import pydantic
 from packaging.requirements import Requirement
 
+from pydependence._core.module_imports_ast import ManualImportInfo
 from pydependence._core.modules_scope import (
     ModulesScope,
     RestrictMode,
@@ -43,10 +44,10 @@ from pydependence._core.requirements_map import (
     ImportMatcherGlob,
     ImportMatcherGlobs,
     ImportMatcherScope,
-    MappedRequirements,
     ReqMatcher,
     RequirementsMapper,
 )
+from pydependence._core.requirements_out import OutMappedRequirements
 from pydependence._core.utils import (
     apply_root_to_path_str,
     load_toml_document,
@@ -129,7 +130,10 @@ class _Output(_ResolveRules, extra="forbid"):
         else:
             return self.scope
 
-    def _write_requirements(self, mapped_requirements: MappedRequirements) -> None:
+    def get_manual_imports(self):
+        return [ManualImportInfo(target=r) for r in self.raw]
+
+    def _write_requirements(self, mapped_requirements: OutMappedRequirements) -> None:
         raise NotImplementedError(
             f"tried to write imports for {repr(self.get_output_name())}, write_imports not implemented for {self.__class__.__name__}"
         )
@@ -146,11 +150,10 @@ class _Output(_ResolveRules, extra="forbid"):
             exclude_in_search_space=self.exclude_in_search_space,
             exclude_builtins=self.exclude_builtins,
         )
-        mapped_requirements = requirements_mapper.generate_requirements(
-            imports=resolved_imports,
+        mapped_requirements = requirements_mapper.generate_output_requirements(
+            imports=resolved_imports + self.get_manual_imports(),
             requirements_env=self.env,
             strict=self.strict_requirements_map,
-            raw=self.raw,
         )
         self._write_requirements(
             mapped_requirements=mapped_requirements,
@@ -160,7 +163,7 @@ class _Output(_ResolveRules, extra="forbid"):
 class _OutputRequirements(_Output):
     output_mode: Literal[OutputModeEnum.requirements]
 
-    def _write_requirements(self, mapped_requirements: MappedRequirements):
+    def _write_requirements(self, mapped_requirements: OutMappedRequirements):
         string = mapped_requirements.as_requirements_txt(
             notice=True,
             sources=True,
@@ -178,7 +181,7 @@ class _OutputPyprojectOptionalDeps(_Output):
     output_mode: Literal[OutputModeEnum.optional_dependencies]
     output_file: Optional[str] = None
 
-    def _write_requirements(self, mapped_requirements: MappedRequirements):
+    def _write_requirements(self, mapped_requirements: OutMappedRequirements):
         array = mapped_requirements.as_toml_array(
             notice=True,
             sources=True,
@@ -197,7 +200,7 @@ class _OutputPyprojectDeps(_Output):
     output_mode: Literal[OutputModeEnum.dependencies]
     output_file: Optional[str] = None
 
-    def _write_requirements(self, mapped_requirements: MappedRequirements):
+    def _write_requirements(self, mapped_requirements: OutMappedRequirements):
         array = mapped_requirements.as_toml_array(
             notice=True,
             sources=True,

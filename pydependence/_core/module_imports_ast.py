@@ -24,10 +24,11 @@
 
 
 import ast
+import dataclasses
 import warnings
 from collections import Counter, defaultdict
 from enum import Enum
-from typing import DefaultDict, Dict, List, NamedTuple, Optional, Tuple
+from typing import DefaultDict, Dict, List, Literal, NamedTuple, Optional, Tuple
 
 from pydependence._core.module_data import ModuleMetadata
 from pydependence._core.utils import assert_valid_import_name, assert_valid_module_path
@@ -139,27 +140,40 @@ class ImportSourceEnum(str, Enum):
     # type_check = 'type_check'  # TODO
 
 
-class LocImportInfo(NamedTuple):
-    # source, e.g. import statement or type check or lazy plugin
-    source_module_info: ModuleMetadata
-    source_type: ImportSourceEnum
+MANUAL_IMPORT_SOURCE = "<manual>"
+
+
+@dataclasses.dataclass
+class BasicImportInfo:
     # target
     target: str
     is_lazy: bool
+    # source
+    source_name: str
+
+    @property
+    def root_target(self) -> str:
+        return self.target.split(".")[0]
+
+
+@dataclasses.dataclass
+class ManualImportInfo(BasicImportInfo):
+    source_name: Literal["<manual>"] = MANUAL_IMPORT_SOURCE
+    is_lazy: Literal[False] = False
+
+
+@dataclasses.dataclass
+class LocImportInfo(BasicImportInfo):
+    # source, e.g. import statement or type check or lazy plugin
+    source_name: str
+    source_module_info: ModuleMetadata
+    source_type: ImportSourceEnum
     # debug
     lineno: int
     col_offset: int
     stack_type_names: Tuple[str, ...]
     # relative import
     is_relative: bool
-
-    @property
-    def root_target(self) -> str:
-        return self.target.split(".")[0]
-
-    @property
-    def source_name(self) -> str:
-        return self.source_module_info.name
 
     @property
     def tagged_target(self) -> str:
@@ -200,6 +214,7 @@ class _AstImportsCollector(ast.NodeVisitor):
         is_relative: bool = False,
     ):
         import_ = LocImportInfo(
+            source_name=self._module_info.name,
             source_module_info=self._module_info,
             target=target,
             is_lazy=self._stack_is_lazy[-1] if (is_lazy is None) else is_lazy,

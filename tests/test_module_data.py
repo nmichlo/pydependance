@@ -100,6 +100,7 @@ def test_get_module_imports(module_info):
     a = {
         "asdf.fdsa": [
             LocImportInfo(
+                source_name=module_info.name,
                 source_module_info=module_info,
                 source_type=ImportSourceEnum.import_from,
                 target="asdf.fdsa",
@@ -112,6 +113,7 @@ def test_get_module_imports(module_info):
         ],
         "buzz": [
             LocImportInfo(
+                source_name=module_info.name,
                 source_module_info=module_info,
                 source_type=ImportSourceEnum.lazy_plugin,
                 target="buzz",
@@ -124,6 +126,7 @@ def test_get_module_imports(module_info):
         ],
         "foo.bar": [
             LocImportInfo(
+                source_name=module_info.name,
                 source_module_info=module_info,
                 source_type=ImportSourceEnum.import_from,
                 target="foo.bar",
@@ -136,6 +139,7 @@ def test_get_module_imports(module_info):
         ],
         "json": [
             LocImportInfo(
+                source_name=module_info.name,
                 source_module_info=module_info,
                 source_type=ImportSourceEnum.import_,
                 target="json",
@@ -148,6 +152,7 @@ def test_get_module_imports(module_info):
         ],
         "os": [
             LocImportInfo(
+                source_name=module_info.name,
                 source_module_info=module_info,
                 source_type=ImportSourceEnum.import_,
                 target="os",
@@ -160,6 +165,7 @@ def test_get_module_imports(module_info):
         ],
         "sys": [
             LocImportInfo(
+                source_name=module_info.name,
                 source_module_info=module_info,
                 source_type=ImportSourceEnum.import_from,
                 target="sys",
@@ -170,6 +176,7 @@ def test_get_module_imports(module_info):
                 is_relative=False,
             ),
             LocImportInfo(
+                source_name=module_info.name,
                 source_module_info=module_info,
                 source_type=ImportSourceEnum.import_,
                 target="sys",
@@ -182,6 +189,7 @@ def test_get_module_imports(module_info):
         ],
         "package": [
             LocImportInfo(
+                source_name=module_info.name,
                 source_module_info=module_info,
                 source_type=ImportSourceEnum.import_from,
                 target="package",
@@ -861,14 +869,14 @@ def test_requirements_list_generation(mapper: RequirementsMapper):
 
     imports = scope_a.resolve_imports()
 
-    mapped = mapper.generate_requirements(imports)
+    mapped = mapper.generate_output_requirements(imports)
     assert mapped._get_debug_struct() == [
         ("extern_a4i", ["A.a4.a4i"]),
         ("glob_B", ["A.a2", "A.a3.a3i", "A.a4.a4i"]),
         ("glob_extern", ["A.a1", "A.a2", "A.a3.a3i"]),
     ]
 
-    mapped = mapper.generate_requirements(imports, requirements_env="asdf")
+    mapped = mapper.generate_output_requirements(imports, requirements_env="asdf")
     assert mapped._get_debug_struct() == [
         ("glob_B", ["A.a2", "A.a3.a3i", "A.a4.a4i"]),
         ("glob_extern", ["A.a1", "A.a2", "A.a3.a3i", "A.a4.a4i"]),
@@ -878,7 +886,7 @@ def test_requirements_list_generation(mapper: RequirementsMapper):
 
     imports = scope_all.resolve_imports()
 
-    mapped = mapper.generate_requirements(imports)
+    mapped = mapper.generate_output_requirements(imports)
     assert mapped._get_debug_struct() == [
         ("asdf", ["t_ast_parser"]),
         ("buzz", ["t_ast_parser"]),
@@ -888,7 +896,7 @@ def test_requirements_list_generation(mapper: RequirementsMapper):
         ("package", ["t_ast_parser"]),
     ]
 
-    mapped = mapper.generate_requirements(imports, requirements_env="asdf")
+    mapped = mapper.generate_output_requirements(imports, requirements_env="asdf")
     assert mapped._get_debug_struct() == [
         ("asdf", ["t_ast_parser"]),
         ("buzz", ["t_ast_parser"]),
@@ -900,7 +908,7 @@ def test_requirements_list_generation(mapper: RequirementsMapper):
     # >>> SCOPE ALL, FROM SCOPE A <<< #
 
     imports = scope_all.resolve_imports(start_scope=scope_a)
-    mapped = mapper.generate_requirements(imports, requirements_env="asdf")
+    mapped = mapper.generate_output_requirements(imports, requirements_env="asdf")
     assert mapped._get_debug_struct() == [
         ("glob_extern", ["A.a1", "A.a2", "A.a3.a3i", "A.a4.a4i", "B.b1", "B.b2", "C"]),
     ]
@@ -908,7 +916,7 @@ def test_requirements_list_generation(mapper: RequirementsMapper):
     imports = scope_all.resolve_imports(
         start_scope=scope_a, exclude_in_search_space=False
     )
-    mapped = mapper.generate_requirements(imports, requirements_env="asdf")
+    mapped = mapper.generate_output_requirements(imports, requirements_env="asdf")
     assert mapped._get_debug_struct() == [
         ("A", ["A.a1", "A.a3.a3i"]),
         ("C", ["B.b2"]),
@@ -921,7 +929,7 @@ def test_requirements_list_generation(mapper: RequirementsMapper):
     imports = scope_all.resolve_imports(
         exclude_in_search_space=False, exclude_builtins=False
     )
-    mapped = mapper.generate_requirements(imports, requirements_env="asdf")
+    mapped = mapper.generate_output_requirements(imports, requirements_env="asdf")
     assert mapped._get_debug_struct() == [
         ("A", ["A.a1", "A.a3.a3i"]),
         ("C", ["B.b2"]),
@@ -939,7 +947,7 @@ def test_requirements_list_generation(mapper: RequirementsMapper):
     imports = scope_all.resolve_imports(
         exclude_in_search_space=True, exclude_builtins=False
     )
-    mapped = mapper.generate_requirements(imports, requirements_env="asdf")
+    mapped = mapper.generate_output_requirements(imports, requirements_env="asdf")
     assert mapped._get_debug_struct() == [
         ("asdf", ["t_ast_parser"]),
         ("buzz", ["t_ast_parser"]),
@@ -957,7 +965,7 @@ def test_requirements_list_generation(mapper: RequirementsMapper):
         exclude_builtins=True,
         visit_lazy=False,
     )
-    mapped = mapper.generate_requirements(imports, requirements_env="asdf")
+    mapped = mapper.generate_output_requirements(imports, requirements_env="asdf")
     assert mapped._get_debug_struct() == [
         ("foo", ["t_ast_parser"]),
         ("glob_extern", ["A.a1", "A.a2", "A.a3.a3i", "A.a4.a4i", "C"]),
@@ -984,7 +992,7 @@ def test_requirements_txt_gen(mapper: RequirementsMapper):
         exclude_unvisited=True,
         visit_lazy=False,
     )
-    mapped = mapper.generate_requirements(
+    mapped = mapper.generate_output_requirements(
         imports,
         requirements_env="asdf",
     )
@@ -1082,7 +1090,7 @@ def test_toml_array_gen(mapper: RequirementsMapper):
         exclude_unvisited=True,
         visit_lazy=False,
     )
-    mapped = mapper.generate_requirements(
+    mapped = mapper.generate_output_requirements(
         imports,
         requirements_env="asdf",
     )
