@@ -43,6 +43,7 @@ from pydependence._core.requirements_map import (
     ImportMatcherBase,
     ImportMatcherGlobs,
     ImportMatcherScope,
+    NoConfiguredRequirementMappingError,
     ReqMatcher,
     RequirementsMapper,
 )
@@ -143,6 +144,16 @@ class _Output(_ResolveRules, extra="forbid"):
             return []
         return [ManualImportInfo.from_target(r) for r in self.raw]
 
+    @pydantic.field_validator("raw", mode="before")
+    @classmethod
+    def _validate_raw(cls, v):
+        if v is not None:
+            normalized = []
+            for r in v:
+                normalized.append(normalize_pkg_name(r))
+            return normalized
+        return v
+
     @pydantic.model_validator(mode="after")
     @classmethod
     def _validate_model(cls, v):
@@ -192,12 +203,17 @@ class _Output(_ResolveRules, extra="forbid"):
         resolved_imports = self.get_resolved_imports(loaded_scopes=loaded_scopes)
         manual_imports = self.get_manual_imports()
         # 2. generate requirements
-        mapped_requirements = requirements_mapper.generate_output_requirements(
-            imports=resolved_imports + manual_imports,
-            requirements_env=self.env,
-            strict=self.strict_requirements_map,
-            resolver_name=self.get_output_name(),
-        )
+        try:
+            mapped_requirements = requirements_mapper.generate_output_requirements(
+                imports=resolved_imports + manual_imports,
+                requirements_env=self.env,
+                strict=self.strict_requirements_map,
+                resolver_name=self.get_output_name(),
+            )
+        except NoConfiguredRequirementMappingError as e:
+            raise NoConfiguredRequirementMappingError(
+                f"[CONFIG]: {self.get_output_name()} [ERROR]: {str(e)}", e.imports
+            ) from e
         # 3. write requirements
         self._write_requirements(
             mapped_requirements=mapped_requirements,
@@ -278,6 +294,21 @@ CfgResolver = Annotated[
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
 
 
+class InvalidRequirementsName(ValueError):
+    pass
+
+
+def normalize_pkg_name(string: str):
+    norm = string.replace("-", "_").lower()
+    if any(c in norm for c in [" ", "\t", "\n"]):
+        raise InvalidRequirementsName(f"Requirements name is invalid: {repr(string)}")
+    if norm != string:
+        warnings.warn(
+            f"normalized requirements name from {repr(string)} to {repr(norm)}"
+        )
+    return norm
+
+
 class CfgVersion(pydantic.BaseModel, extra="forbid", arbitrary_types_allowed=True):
     # the pip install requirement
     requirement: str
@@ -293,7 +324,7 @@ class CfgVersion(pydantic.BaseModel, extra="forbid", arbitrary_types_allowed=Tru
 
     @property
     def package(self) -> str:
-        return self.parsed_requirement.name.replace("-", "_")
+        return normalize_pkg_name(self.parsed_requirement.name)
 
     @classmethod
     def from_string(cls, requirement: str):

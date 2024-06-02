@@ -1370,45 +1370,87 @@ def test_pydeps_cli():
         "extern_b1",
         "extern_b2",
         "foo",
+        "lazy_E",
         "package",
     ]
 
     doc = load_toml_document(PKGS_ROOT_PYPROJECT)
 
-    # load original document
-    orig_project_deps = doc["project"]["dependencies"]
-    orig_optional_deps = doc["project"]["optional-dependencies"]["all"]
-    # assert orig_project_deps.unwrap() == TARGET_PROJECT_DEPS
-    # assert orig_optional_deps.unwrap() == TARGET_OPTIONAL_DEPS
+    # 1. load original document
+    orig_project_deps = doc["project"].get("dependencies", tomlkit.array())
+    orig_optional_deps = (
+        doc["project"]
+        .get("optional-dependencies", tomlkit.table())
+        .get("all", tomlkit.array())
+    )
 
-    # # replace arrays
-    # toml_file_replace_array(
-    #     file=PKGS_ROOT_PYPROJECT,
-    #     keys=["project", "dependencies"],
-    #     array=tomlkit.array(),
-    # )
-    # toml_file_replace_array(
-    #     file=PKGS_ROOT_PYPROJECT,
-    #     keys=["project", "optional-dependencies", "all"],
-    #     array=tomlkit.array(),
-    # )
-    #
-    # # load modified document
-    # doc = load_toml_document(PKGS_ROOT_PYPROJECT)
-    # reset_project_deps = doc["project"]["dependencies"]
-    # reset_optional_deps = doc["project"]["optional-dependencies"]["all"]
-    # assert reset_project_deps.unwrap() == []
-    # assert reset_optional_deps.unwrap() == []
+    # 2. replace arrays
+    toml_file_replace_array(
+        file=PKGS_ROOT_PYPROJECT,
+        keys=["project", "dependencies"],
+        array=tomlkit.array(),
+    )
+    toml_file_replace_array(
+        file=PKGS_ROOT_PYPROJECT,
+        keys=["project", "optional-dependencies", "all"],
+        array=tomlkit.array(),
+    )
 
-    # run cli
+    # 3. load modified document
+    doc = load_toml_document(PKGS_ROOT_PYPROJECT)
+    reset_project_deps = doc["project"]["dependencies"]
+    reset_optional_deps = doc["project"]["optional-dependencies"]["all"]
+
+    # 4. run cli
     pydeps(PKGS_ROOT_PYPROJECT)
 
-    # load modified document
+    # 5. load modified document
     doc = load_toml_document(PKGS_ROOT_PYPROJECT)
     new_project_deps = doc["project"]["dependencies"]
     new_optional_deps = doc["project"]["optional-dependencies"]["all"]
+
+    # checks - 1. & 5. -- defer to allow re-gen
+    assert orig_project_deps.unwrap() == TARGET_PROJECT_DEPS
+    assert orig_optional_deps.unwrap() == TARGET_OPTIONAL_DEPS
+    assert reset_project_deps.unwrap() == []
+    assert reset_optional_deps.unwrap() == []
     assert new_project_deps.unwrap() == TARGET_PROJECT_DEPS
     assert new_optional_deps.unwrap() == TARGET_OPTIONAL_DEPS
+
+    # FINAL CHECKS
+    assert doc["project"]["dependencies"].unwrap() == [
+        "asdf",
+        "extern_C",
+        "extern_D",
+        "foo",
+        "package",
+    ]
+    assert doc["project"]["optional-dependencies"].unwrap() == {
+        "all": [
+            "asdf",
+            "buzz",
+            "extern_C",
+            "extern_D",
+            "extern_b1",
+            "extern_b2",
+            "foo",
+            "lazy_E",
+            "package",
+        ],
+        "B1_all": ["extern_C", "extern_D", "extern_b1", "extern_b2", "lazy_E"],
+        "B1_some": [],
+        "B1_some_readd": ["extern_b1"],
+        "dev": ["pre_commit"],
+        "raw_resolve_1": [
+            "opencv_python",
+        ],
+        "raw_resolve_2a": ["opencv-python-contrib==1"],  # test normalisation
+        "raw_resolve_2b": ["opencv-python-contrib==1"],  # test normalisation
+        "raw_resolve_3a": ["opencv_python_contrib==2"],  # test normalisation
+        "raw_resolve_3b": ["opencv_python_contrib==2"],  # test normalisation
+        "test": ["pytest>=6", "pytest_cov"],
+        "test_alt": ["pytest", "pytest_cov>=4"],
+    }
 
 
 # ========================================================================= #

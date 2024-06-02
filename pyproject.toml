@@ -141,7 +141,7 @@ python_files = ["test.py", "test_*.py", "__test__*.py"]
 default_root = ".."
 
 # default, don't need to specify
-default_resolve_rules = {visit_lazy=false, exclude_unvisited=true, exclude_in_search_space=true, exclude_builtins=true, strict_requirements_map=true}
+default_resolve_rules = {visit_lazy=false, re_add_lazy=false, exclude_unvisited=true, exclude_in_search_space=true, exclude_builtins=true, strict_requirements_map=true}
 
 # default, don't need to specify
 default_scope_rules = {unreachable_mode="error"}
@@ -159,13 +159,14 @@ versions = [
 
 resolvers = [
     # output_name is optional, by default it is the same as the scope name, or sub scope
-    {output_mode='dependencies', scope='pydependence'},
-    {output_mode='optional-dependencies', scope='pydependence', output_name='all', visit_lazy=true},
-    {output_mode='optional-dependencies', scope='pydependence', start_scope='pydependence-core', output_name='core', visit_lazy=true},
-    {output_mode='optional-dependencies', scope='pydependence', output_name='example_core_no_lazy'},
-    {output_mode='optional-dependencies', scope='pydependence', env='legacy', output_name='example_legacy', visit_lazy=true},
-#    {output_mode='optional-dependencies', output_name='test', raw=['pytest', 'pytest-cov']},
-#    {output_mode='optional-dependencies', output_name='dev', raw=['pre-commit']},
+    {                                    output_mode='dependencies',          scope='pydependence'},
+    {output_name='some',                 output_mode='optional-dependencies', scope='pydependence', visit_lazy=false},
+    {output_name='all',                  output_mode='optional-dependencies', scope='pydependence', visit_lazy=true},
+    {output_name='core',                 output_mode='optional-dependencies', scope='pydependence', start_scope='pydependence-core', visit_lazy=true},
+    {output_name='example_core_no_lazy', output_mode='optional-dependencies', scope='pydependence'},
+    {output_name='example_legacy',       output_mode='optional-dependencies', scope='pydependence', env='legacy', visit_lazy=true},
+    {output_name='test',                 output_mode='optional-dependencies', raw=['pytest', 'pytest-cov'], strict_requirements_map=false},
+    {output_name='dev',                  output_mode='optional-dependencies', raw=['pre-commit'], strict_requirements_map=false},
 ]
 
 # collections of packages and dependencies that will then be resolved.
@@ -209,16 +210,16 @@ classifiers = [
 
 requires-python = ">=3.8"
 dependencies = [
-    # [AUTOGEN] by pydependence **DO NOT EDIT** [AUTOGEN]
+    # [AUTOGEN] by pydependence resolver 'pydependence' **DO NOT EDIT** [AUTOGEN]
     "networkx",
-    # ← pydependence._core.modules_resolver
-    # ← pydependence._core.modules_scope
+    #     ← pydependence._core.modules_resolver
+    #     ← pydependence._core.modules_scope
     "packaging",
-    # ← pydependence._cli
+    #     ← pydependence._cli
     "pydantic>=2.0.0",
-    # ← pydependence._cli
+    #     ← pydependence._cli
     "stdlib_list",
-    # ← pydependence._core.builtin
+    #     ← pydependence._core.builtin
 ]
 
 # - - - - - - - - - - - - - - - - - - - - - - #
@@ -231,68 +232,80 @@ dependencies = [
 [project.optional-dependencies]
 
 dev = [
-    # make sure to also update `.github/workflows/python-lint.yml` with the same requirements
-    "pre-commit~=3.7.0",
+    # [AUTOGEN] by pydependence resolver 'dev' **DO NOT EDIT** [AUTOGEN]
+    "pre_commit", # [M]
+    #     ← <manual: pre_commit>
 ]
 
 test = [
-    "pytest>=6.2.4",
-    "pytest-cov>=2.12.1",
+    # [AUTOGEN] by pydependence resolver 'test' **DO NOT EDIT** [AUTOGEN]
+    "pytest", # [M]
+    #     ← <manual: pytest>
+    "pytest_cov", # [M]
+    #     ← <manual: pytest_cov>
 ]
-
+some = [
+    # [AUTOGEN] by pydependence resolver 'some' **DO NOT EDIT** [AUTOGEN]
+    "networkx",
+    #     ← pydependence._core.modules_resolver
+    #     ← pydependence._core.modules_scope
+    "packaging",
+    #     ← pydependence._cli
+    "pydantic>=2.0.0",
+    #     ← pydependence._cli
+    "stdlib_list",
+    #     ← pydependence._core.builtin
+]
 all = [
-    # [AUTOGEN] by pydependence **DO NOT EDIT** [AUTOGEN]
+    # [AUTOGEN] by pydependence resolver 'all' **DO NOT EDIT** [AUTOGEN]
     "networkx",
-    # ← pydependence._core.modules_resolver
-    # ← pydependence._core.modules_scope
+    #     ← pydependence._core.modules_resolver
+    #     ← pydependence._core.modules_scope
     "packaging",
-    # ← pydependence._cli
+    #     ← pydependence._cli
     "pydantic>=2.0.0",
-    # ← pydependence._cli
+    #     ← pydependence._cli
     "stdlib_list",
-    # ← pydependence._core.builtin
-    "tomlkit",
-    # ← pydependence._core.requirements_map
-    # ← pydependence._core.utils
+    #     ← pydependence._core.builtin
+    "tomlkit", # [L]
+    #     ← [L] pydependence._core.requirements_out
+    #     ← [L] pydependence._core.utils
 ]
-
 core = [
-    # [AUTOGEN] by pydependence **DO NOT EDIT** [AUTOGEN]
+    # [AUTOGEN] by pydependence resolver 'core' **DO NOT EDIT** [AUTOGEN]
     "networkx",
-    # ← pydependence._core.modules_resolver
-    # ← pydependence._core.modules_scope
+    #     ← pydependence._core.modules_resolver
+    #     ← pydependence._core.modules_scope
     "stdlib_list",
-    # ← pydependence._core.builtin
-    "tomlkit",
-    # ← pydependence._core.requirements_map
-    # ← pydependence._core.utils
+    #     ← pydependence._core.builtin
+    "tomlkit", # [L]
+    #     ← [L] pydependence._core.requirements_out
+    #     ← [L] pydependence._core.utils
 ]
-
 example_core_no_lazy = [
-    # [AUTOGEN] by pydependence **DO NOT EDIT** [AUTOGEN]
+    # [AUTOGEN] by pydependence resolver 'example_core_no_lazy' **DO NOT EDIT** [AUTOGEN]
     "networkx",
-    # ← pydependence._core.modules_resolver
-    # ← pydependence._core.modules_scope
+    #     ← pydependence._core.modules_resolver
+    #     ← pydependence._core.modules_scope
     "packaging",
-    # ← pydependence._cli
+    #     ← pydependence._cli
     "pydantic>=2.0.0",
-    # ← pydependence._cli
+    #     ← pydependence._cli
     "stdlib_list",
-    # ← pydependence._core.builtin
+    #     ← pydependence._core.builtin
 ]
-
 example_legacy = [
-    # [AUTOGEN] by pydependence **DO NOT EDIT** [AUTOGEN]
+    # [AUTOGEN] by pydependence resolver 'example_legacy' **DO NOT EDIT** [AUTOGEN]
     "networkx",
-    # ← pydependence._core.modules_resolver
-    # ← pydependence._core.modules_scope
+    #     ← pydependence._core.modules_resolver
+    #     ← pydependence._core.modules_scope
     "packaging",
-    # ← pydependence._cli
+    #     ← pydependence._cli
     "pydantic<2.0.0,>=1.0.0",
-    # ← pydependence._cli
+    #     ← pydependence._cli
     "stdlib_list",
-    # ← pydependence._core.builtin
-    "tomlkit",
-    # ← pydependence._core.requirements_map
-    # ← pydependence._core.utils
+    #     ← pydependence._core.builtin
+    "tomlkit", # [L]
+    #     ← [L] pydependence._core.requirements_out
+    #     ← [L] pydependence._core.utils
 ]
