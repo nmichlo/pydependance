@@ -168,7 +168,14 @@ def _find_modules(
         reverse = g.reverse()
         for node in list(g.nodes):
             root = node.split(".")[0]
-            if not nx.has_path(reverse, node, root):
+            try:
+                has_path = nx.has_path(reverse, node, root)
+            except nx.NodeNotFound as e:
+                if not reverse.has_node(node):
+                    raise nx.NodeNotFound(f"Node not found: {node}") from e
+                else:
+                    raise nx.NodeNotFound(f"Root node not found: {root}") from e
+            if not has_path:
                 if unreachable_mode == UnreachableModeEnum.error:
                     raise UnreachableModuleError(
                         f"Unreachable module found: {node} from root: {root}, module is probably not marked as a package or is missing an __init__.py file!"
