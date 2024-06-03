@@ -1,0 +1,175 @@
+[tool.pydependence]
+default_root = "."
+default_resolve_rules = {visit_lazy=false, exclude_unvisited=true, exclude_in_search_space=true, exclude_builtins=true, strict_requirements_map=false}
+default_scope_rules = {unreachable_mode="keep"}
+
+# global allowed package versions & version to import map
+versions = [
+#    "networkx",
+#    "pydantic>=2.0.0",
+#    {requirement="pydantic<2.0.0,>=1.0.0", env='legacy'},
+#    "stdlib_list",
+#    "tomlkit",
+#    "packaging",
+    {requirement="asdf", import="B.*,extern_a1,extern_a2,extern_a3i,extern_a4i"},
+    {requirement="opencv-python-contrib==1"},
+    {requirement="opencv_python_contrib==2", env="alt"},
+]
+
+# collections of outputs that will be generated
+resolvers = [
+    {output_mode='dependencies', scope='all'},
+    {output_mode='optional-dependencies', scope='all', output_name='all', visit_lazy=true},
+    {output_mode='optional-dependencies', scope='all', start_scope="B1", output_name='B1-all', visit_lazy=true},
+    {output_mode='optional-dependencies', scope='all', start_scope="B1", output_name='B1-some', visit_lazy=false, re_add_lazy=false},
+    {output_mode='optional-dependencies', scope='all', start_scope="B1", output_name='B1-some-readd', visit_lazy=false, re_add_lazy=true},
+    {output_mode='optional-dependencies', output_name='test', raw=['pytest>=6', 'pytest-cov']},
+    {output_mode='optional-dependencies', output_name='test-alt', raw=['pytest', 'pytest-cov>=4']},
+    {output_mode='optional-dependencies', output_name='raw-resolve-1', raw=['opencv-python']},
+    {output_mode='optional-dependencies', output_name='raw-resolve-2a', raw=['opencv-python-contrib']},
+    {output_mode='optional-dependencies', output_name='raw-resolve-2b', raw=['opencv_python_contrib']},
+    {output_mode='optional-dependencies', output_name='raw-resolve-3a', raw=['opencv-python-contrib'], env="alt"},
+    {output_mode='optional-dependencies', output_name='raw-resolve-3b', raw=['opencv_python_contrib'], env="alt"},
+    {output_mode='optional-dependencies', output_name='dev', raw=['pre-commit']},
+]
+
+# collections of packages and dependencies that will then be resolved.
+[[tool.pydependence.scopes]]
+name = "A"
+pkg_paths = "./A"
+
+[[tool.pydependence.scopes]]
+name = "all"
+search_paths = "."
+
+[[tool.pydependence.scopes]]
+name = "A_limited"
+parents = ["A"]
+limit = "A.a3"
+
+[[tool.pydependence.scopes]]
+name = "B"
+parents=["all"]
+limit = "B"
+
+[[tool.pydependence.scopes]]
+name = "B1"
+parents=["all"]
+limit = "B.b1"
+
+[[tool.pydependence.scopes]]
+name = "parser"
+pkg_paths = "./t_ast_parser.py"
+
+# >>> RESOLVED DEPENDENCIES <<< #
+[project]
+dependencies = [
+    # [AUTOGEN] by pydependence resolver 'all' **DO NOT EDIT** [AUTOGEN]
+    "asdf",
+    #     ← A.a1
+    #     ← A.a2
+    #     ← A.a3.a3i
+    #     ← A.a4.a4i
+    "extern_C",
+    #     ← C
+    "extern_D",
+    #     ← lazy_D
+    "foo",
+    #     ← t_ast_parser
+    "package",
+    #     ← t_ast_parser
+]
+
+
+[project.optional-dependencies]
+all = [
+    # [AUTOGEN] by pydependence resolver 'all' **DO NOT EDIT** [AUTOGEN]
+    "asdf",
+    #     ← A.a1
+    #     ← A.a2
+    #     ← A.a3.a3i
+    #     ← A.a4.a4i
+    #     ← [L] t_ast_parser
+    "buzz", # [L]
+    #     ← [L] t_ast_parser
+    "extern_C",
+    #     ← C
+    "extern_D",
+    #     ← lazy_D
+    "extern_b1", # [L]
+    #     ← [L] B.b1
+    "extern_b2", # [L]
+    #     ← [L] B.b2
+    "foo",
+    #     ← t_ast_parser
+    "lazy_E", # [L]
+    #     ← [L] lazy_D
+    "package",
+    #     ← t_ast_parser
+]
+B1-all = [
+    # [AUTOGEN] by pydependence resolver 'B1-all' **DO NOT EDIT** [AUTOGEN]
+    "extern_C",
+    #     ← C
+    "extern_D",
+    #     ← lazy_D
+    "extern_b1", # [L]
+    #     ← [L] B.b1
+    "extern_b2", # [L]
+    #     ← [L] B.b2
+    "lazy_E", # [L]
+    #     ← [L] lazy_D
+]
+B1-some = [
+    # [AUTOGEN] by pydependence resolver 'B1-some' **DO NOT EDIT** [AUTOGEN]
+]
+B1-some-readd = [
+    # [AUTOGEN] by pydependence resolver 'B1-some-readd' **DO NOT EDIT** [AUTOGEN]
+    "extern_b1", # [L]
+    #     ← [L] B.b1
+]
+test = [
+    # [AUTOGEN] by pydependence resolver 'test' **DO NOT EDIT** [AUTOGEN]
+    "pytest>=6", # [M]
+    #     ← <manual: pytest>=6>
+    "pytest_cov", # [M]
+    #     ← <manual: pytest_cov>
+]
+test-alt = [
+    # [AUTOGEN] by pydependence resolver 'test-alt' **DO NOT EDIT** [AUTOGEN]
+    "pytest", # [M]
+    #     ← <manual: pytest>
+    "pytest_cov>=4", # [M]
+    #     ← <manual: pytest_cov>=4>
+]
+dev = [
+    # [AUTOGEN] by pydependence resolver 'dev' **DO NOT EDIT** [AUTOGEN]
+    "pre_commit", # [M]
+    #     ← <manual: pre_commit>
+]
+raw-resolve-1 = [
+    # [AUTOGEN] by pydependence resolver 'raw-resolve-1' **DO NOT EDIT** [AUTOGEN]
+    "opencv_python", # [M]
+    #     ← <manual: opencv_python>
+]
+raw-resolve-2a = [
+    # [AUTOGEN] by pydependence resolver 'raw-resolve-2a' **DO NOT EDIT** [AUTOGEN]
+    "opencv-python-contrib==1", # [M]
+    #     ← <manual: opencv_python_contrib>
+]
+raw-resolve-2b = [
+    # [AUTOGEN] by pydependence resolver 'raw-resolve-2b' **DO NOT EDIT** [AUTOGEN]
+    "opencv-python-contrib==1", # [M]
+    #     ← <manual: opencv_python_contrib>
+]
+raw-resolve-3a = [
+    # [AUTOGEN] by pydependence resolver 'raw-resolve-3a' **DO NOT EDIT** [AUTOGEN]
+    "opencv_python_contrib==2", # [M]
+    #     ← <manual: opencv_python_contrib>
+]
+raw-resolve-3b = [
+    # [AUTOGEN] by pydependence resolver 'raw-resolve-3b' **DO NOT EDIT** [AUTOGEN]
+    "opencv_python_contrib==2", # [M]
+    #     ← <manual: opencv_python_contrib>
+]
+

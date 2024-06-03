@@ -21,14 +21,9 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE  #
 # SOFTWARE.                                                                      #
 # ============================================================================== #
-import typing
+
 from pathlib import Path
-from typing import Union
-
-# never actually imported at runtime, but used for type hints in IDEs
-if typing.TYPE_CHECKING:
-    from tomlkit import TOMLDocument
-
+from typing import List, Union
 
 # ========================================================================= #
 # AST IMPORT PARSER                                                         #
@@ -73,25 +68,16 @@ def assert_valid_import_name(import_: str) -> str:
 # ========================================================================= #
 
 
-def is_relative_path(path: Union[str, Path]) -> bool:
-    # '..' should be considered a relative path
-    # '.' should be considered a relative path
-    # `not is_absolute` is not enough!
-    return Path(path).is_relative_to(Path("."))
-
-
-def is_absolute_path(path: Union[str, Path]) -> bool:
-    return not is_relative_path(path)
-
-
-def apply_root_to_path_str(root: Union[str, Path], path: Union[str, Path]) -> str:
-    if is_relative_path(root):
+def apply_root_to_path_str(root: "Union[str, Path]", path: "Union[str, Path]") -> str:
+    root = Path(root)
+    path = Path(path)
+    if not root.is_absolute():
         raise ValueError(f"root must be an absolute path, got: {root}")
-    if is_absolute_path(path):
-        path = Path(path)
+    if path.is_absolute():
+        merged = path
     else:
-        path = Path(root) / path
-    return str(path.resolve())
+        merged = root / path
+    return str(merged.resolve())
 
 
 # ========================================================================= #
@@ -99,9 +85,12 @@ def apply_root_to_path_str(root: Union[str, Path], path: Union[str, Path]) -> st
 # ========================================================================= #
 
 
-def load_toml_document(path: Union[str, Path]) -> "TOMLDocument":
+def load_toml_document(
+    path: "Union[str, Path]",
+) -> "tomlkit.toml_document.TOMLDocument":
     import tomlkit
-    from tomlkit import TOMLDocument
+    import tomlkit.items
+    import tomlkit.toml_document
 
     path = Path(path)
     if not path.name.endswith(".toml"):
@@ -110,8 +99,70 @@ def load_toml_document(path: Union[str, Path]) -> "TOMLDocument":
         raise FileNotFoundError(f"path is not a file: {path}")
     with open(path) as fp:
         toml = tomlkit.load(fp)
-        assert isinstance(toml, TOMLDocument), f"got {type(toml)}, not TOMLDocument"
+        assert isinstance(
+            toml, tomlkit.toml_document.TOMLDocument
+        ), f"got {type(toml)}, not TOMLDocument"
     return toml
+
+
+# ========================================================================= #
+# WRITE                                                                     #
+# ========================================================================= #
+
+
+def txt_file_dump(
+    *,
+    file: "Union[str, Path]",
+    contents: "str",
+):
+    # write
+    with open(file, "w") as fp:
+        fp.write(contents)
+        if not contents.endswith("\n"):
+            fp.write("\n")
+
+
+def toml_file_replace_array(
+    *,
+    file: "Union[str, Path]",
+    keys: "List[str]",
+    array: "tomlkit.items.Array",
+):
+    import tomlkit
+    import tomlkit.items
+    import tomlkit.toml_document
+
+    # TODO: this needs multiple loads and writes if we are modifying multiple arrays
+    #       which is not ideal... but it is a simple solution for now.
+
+    assert isinstance(
+        array, tomlkit.items.Array
+    ), f"array must be a tomlkit Array, got: {type(array)}"
+
+    # load file
+    file = Path(file)
+    assert file.is_absolute(), f"file must be an absolute path, got: {file}"
+    toml = load_toml_document(file)
+
+    # split parent keys from array key
+    (*parent_keys, array_key) = keys
+
+    # add parent sections if missing
+    parent = toml
+    for i, k in enumerate(parent_keys):
+        section = parent.setdefault(k, {})
+        assert isinstance(section, tomlkit.items.Table)
+        parent = section
+
+    # set array
+    if array_key in parent:
+        old_array = parent[array_key]
+        assert isinstance(old_array, tomlkit.items.Array)
+    parent[array_key] = array
+
+    # write
+    with open(file, "w") as fp:
+        tomlkit.dump(toml, fp)
 
 
 # ========================================================================= #
@@ -122,8 +173,6 @@ def load_toml_document(path: Union[str, Path]) -> "TOMLDocument":
 __all__ = (
     "assert_valid_module_path",
     "assert_valid_import_name",
-    "is_relative_path",
-    "is_absolute_path",
     "apply_root_to_path_str",
     "load_toml_document",
 )

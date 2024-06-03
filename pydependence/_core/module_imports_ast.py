@@ -24,10 +24,11 @@
 
 
 import ast
+import dataclasses
 import warnings
 from collections import Counter, defaultdict
 from enum import Enum
-from typing import DefaultDict, Dict, List, NamedTuple, Optional, Tuple
+from typing import DefaultDict, Dict, List, Literal, NamedTuple, Optional, Tuple
 
 from pydependence._core.module_data import ModuleMetadata
 from pydependence._core.utils import assert_valid_import_name, assert_valid_module_path
@@ -139,13 +140,63 @@ class ImportSourceEnum(str, Enum):
     # type_check = 'type_check'  # TODO
 
 
-class LocImportInfo(NamedTuple):
-    # source, e.g. import statement or type check or lazy plugin
-    source_module_info: ModuleMetadata
-    source: ImportSourceEnum
+@dataclasses.dataclass
+class BasicImportInfo:
     # target
     target: str
+    source_name: str
     is_lazy: bool
+
+    @property
+    def root_target(self) -> str:
+        return self.target.split(".")[0]
+
+
+class ManualSource:
+    def __init__(self, orig_name: str):
+        self.orig_name = orig_name
+
+    def __str__(self):
+        return f"<manual: {self.orig_name}>"
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}({self.orig_name})"
+
+    def __eq__(self, other):
+        if isinstance(other, str):
+            return str(self) == other
+        elif isinstance(other, ManualSource):
+            return self.orig_name == other.orig_name
+        return False
+
+    def __lt__(self, other):
+        if isinstance(other, str):
+            return str(self) < other
+        elif isinstance(other, ManualSource):
+            return self.orig_name < other.orig_name
+        else:
+            raise TypeError(f"Invalid types: {type(self)} < {type(other)}")
+
+    def __hash__(self):
+        return hash(str(self))
+
+
+@dataclasses.dataclass
+class ManualImportInfo(BasicImportInfo):
+    source_name: ManualSource
+    is_lazy: Literal[False] = False
+
+    @classmethod
+    def from_target(cls, target: str) -> "ManualImportInfo":
+        return cls(target=target, source_name=ManualSource(target))
+
+
+@dataclasses.dataclass
+class LocImportInfo(BasicImportInfo):
+    # source, e.g. import statement or type check or lazy plugin
+    source_name: str
+    source_module_info: ModuleMetadata
+    source_type: ImportSourceEnum
     # debug
     lineno: int
     col_offset: int
@@ -187,17 +238,18 @@ class _AstImportsCollector(ast.NodeVisitor):
         self,
         node: ast.AST,
         target: str,
-        source: ImportSourceEnum,
+        source_type: ImportSourceEnum,
         is_lazy: "Optional[bool]" = None,
         is_relative: bool = False,
     ):
         import_ = LocImportInfo(
+            source_name=self._module_info.name,
             source_module_info=self._module_info,
             target=target,
             is_lazy=self._stack_is_lazy[-1] if (is_lazy is None) else is_lazy,
             lineno=node.lineno,
             col_offset=node.col_offset,
-            source=source,
+            source_type=source_type,
             stack_type_names=tuple(self._stack_ast_kind),
             is_relative=is_relative,
         )
@@ -242,7 +294,7 @@ class _AstImportsCollector(ast.NodeVisitor):
             self._push_current_import(
                 node=node,
                 target=alias.name,
-                source=ImportSourceEnum.import_,
+                source_type=ImportSourceEnum.import_,
             )
 
     def visit_ImportFrom(self, node: ast.ImportFrom):
@@ -263,7 +315,7 @@ class _AstImportsCollector(ast.NodeVisitor):
         self._push_current_import(
             node=node,
             target=target,
-            source=ImportSourceEnum.import_from,
+            source_type=ImportSourceEnum.import_from,
             is_relative=is_relative,
         )
 
@@ -353,7 +405,7 @@ class _AstImportsCollector(ast.NodeVisitor):
         self._push_current_import(
             node=node,
             target=import_,
-            source=ImportSourceEnum.lazy_plugin,
+            source_type=ImportSourceEnum.lazy_plugin,
             is_lazy=True,
         )
 

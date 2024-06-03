@@ -105,7 +105,13 @@ class ModuleMetadata(NamedTuple):
     def yield_search_path_modules(
         cls, search_path: Path, *, tag: str, valid_only: bool = True
     ) -> "Iterator[ModuleMetadata]":
-        for p in search_path.glob("**/*.py"):
+        def _visit(p: Path):
+            if p.is_dir():
+                yield from p.glob("**/*.py")
+            else:
+                raise ValueError(f"Invalid path: {p}")
+
+        for p in _visit(search_path):
             m = cls.from_root_and_subpath(search_path, subpath=p, tag=tag)
             if valid_only and (not m.is_name_valid):
                 warnings.warn(
@@ -120,7 +126,15 @@ class ModuleMetadata(NamedTuple):
     def yield_package_modules(
         cls, package_path: Path, *, tag: str, valid_only: bool = True
     ) -> "Iterator[ModuleMetadata]":
-        for p in package_path.glob("**/*.py"):
+        def _visit(p: Path):
+            if p.is_file():
+                yield p
+            elif p.is_dir():
+                yield from p.glob("**/*.py")
+            else:
+                raise ValueError(f"Invalid path: {p}")
+
+        for p in _visit(package_path):
             m = cls.from_root_and_subpath(package_path.parent, subpath=p, tag=tag)
             if valid_only and (not m.is_name_valid):
                 warnings.warn(
