@@ -37,7 +37,15 @@
 - [Overview](#overview)
   + [Why](#Why)
   + [How This Works](#how-this-works)
+- [Configuration](#configuration)
 - [Usage](#usage)
+  + [Usage - Pre-Commit](#usage---pre-commit)
+  + [Usage - CLI](#usage---cli)
+- [Help](#help)
+  + [Version Mapping](#version-mapping)
+  + [Scopes](#scopes)
+    * [Sub-Scopes](#sub-scopes)
+  + [Output Resolvers](#output-resolvers)
 
 ----------------------
 
@@ -67,6 +75,8 @@ This project was created for multiple reasons
 ----------------------
 
 ## Configuration
+
+_Check the [pyproject.toml](./pyproject.toml) for detailed explanations of various config options and a working example of `pydependence` applied to itself._
 
 It is recommended to specify the config inside your projects existing `pyproject.toml`
 file, however, pydepedence will override whatever is specified here if a `.pydependence.cfg`
@@ -117,9 +127,7 @@ python -m pydependence --help
 
 ----------------------
 
-## Manual
-
-### PYDEPENDENCE
+## Help
 
 pydependence is an AST imports analysis tool that is used to discover the imports of a
 package and generate a dependency graph and requirements/pyproject sections.
@@ -127,7 +135,9 @@ package and generate a dependency graph and requirements/pyproject sections.
 pydependence is NOT a package manager or a dependency resolver.
 This is left to the tool of your choice, e.g. `pip`, `poetry`, `pip-compile`, `uv`, etc.
 
-### VERSION MAPPINGS
+_Check the [pyproject.toml](./pyproject.toml) for detailed explanations of various config options and a working example of `pydependence` applied to itself._
+
+### Version Mapping
 
 Versions are used to specify the version of a package that should be used when generating output requirements.
 - If a version is not specified, an error will be raised.
@@ -135,9 +145,8 @@ Versions are used to specify the version of a package that should be used when g
 Versions are also used to construct mappings between package names and import names.
 - e.g. `Pillow` is imported as `PIL`, so the version mapping is `{package="pillow", version="*", import="PIL"}`
 
-Resolving optional dependencies?
 
-### SCOPES
+### Scopes
 
 A scope is a logical collection of packages.
 It is a way to group packages together for the purpose of dependency resolution.
@@ -161,7 +170,7 @@ The order of evaluation when constucting multiple scopes is important, and can
 be used to create complex dependency resolution strategies.
    - all scopes are constructed in order of definition
 
-#### SUBSCOPES
+#### Sub-Scopes
 
 A subscope is simply an alias for constructing a new scope, where:
 - the parent scope is the current scope
@@ -191,7 +200,7 @@ why?
 - This simplifies syntax for the common pattern of when you want to resolve optional dependencies
   across an entire package, but only want to traverse starting from the subscope.
 
-### RESOLVERS
+### Output Resolvers
 
 Resolvers are used to specify how to resolve dependencies, and where to output the results.
 
