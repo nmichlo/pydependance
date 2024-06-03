@@ -26,127 +26,77 @@ testpaths = ["tests", "pydependence"]
 python_files = ["test.py", "test_*.py", "__test__*.py"]
 
 # - - - - - - - - - - - - - - - - - - - - - - #
-# BOOTSTRAPPED PYDEPENDANCE SETTINGS          #
+# BOOTSTRAPPED PYDEPENDANCE EXAMPLE           #
 # - - - - - - - - - - - - - - - - - - - - - - #
-
-# PYDEPENDENCE:
-# =============
-
-# pydependence is an AST imports analysis tool that is used to discover the imports of a package and generate
-# a dependency graph and requirements/pyproject sections.
-
-# pydependence is NOT a package manager or a dependency resolver.
-# This is left to the tool of your choice, e.g. pip, poetry, pip-compile, etc.
-
-
-# VERSION MAPPINGS:
-# =================
-
-# Versions are used to specify the version of a package that should be used when generating output requirements.
-# - If a version is not specified, an error will be raised.
-
-# Versions are also used to construct mappings between package names and import names.
-# - e.g. Pillow is imported as PIL, so the version mapping is {package="pillow", version="*", import="PIL"}
-
-# Resolving optional dependencies?
-
-# SCOPE:
-# ======
-
-# A scope is a logical collection of packages.
-# It is a way to group packages together for the purpose of dependency resolution.
-# - NOTE: there cannot be conflicting module imports within a scope.
-
-# Scopes can inherit from other scopes.
-# Scopes can have filters applied to them, include & exclude.
-# Scopes must have unique names.
-
-# The order of constructing a single scope is important.
-#    1. parents, search_paths, pkg_paths > [packages:NotImplemented]
-#       - parents: inherit all modules from the specified scopes
-#       - search_paths: search for packages inside the specified paths (like PYTHONPATH)
-#       - pkg_paths: add the packages at the specified paths
-#    2. limit, include, exclude
-#       - limit: limit the search space to children of the specified packages
-#       - include: include packages that match the specified patterns
-#       - exclude: exclude packages that match the specified patterns
-
-# The order of evaluation when constucting multiple scopes is important, and can
-# be used to create complex dependency resolution strategies.
-#    - all scopes are constructed in order of definition
-
-# SUBSCOPES:
-# ==========
-
-# A subscope is simply an alias for constructing a new scope, where:
-# - the parent scope is the current scope
-# - a filter is applied to limit the packages
-
-# e.g.
-# ```
-# [[tool.pydependence.scopes]]
-# name = "my_pkg"
-# pkg_paths = ["my_pkg"]
-# subscopes = {mySubPkg="my_pkg.my_sub_pkg"}
-# ```
-# is the same as:
-# ```
-# [[tool.pydependence.scopes]]
-# name = "my_pkg"
-# pkg_paths = ["my_pkg"]
-#
-# [[tool.pydependence.scopes]]
-# name = "mySubPkg"
-# parents = ["my_pkg"]
-# limit = ["my_pkg.my_sub_pkg"]
-# ```
-
-# why?
-# - This simplifies syntax for the common pattern of when you want to resolve optional dependencies
-#   across an entire package, but only want to traverse starting from the subscope.
-
-# RESOLVERS:
-# ==========
-
-# Resolvers are used to specify how to resolve dependencies, and where to output the results.
-
-# options:
-# * scope:
-#   - is used to determine the search space for the resolver.
-# * start_scope:
-#   - is used to determine the starting point for the resolver, i.e. BFS across all imports occurs from this point.
-# * output_mode:
-#   - is used to determine where to output the results.
-#   - valid options are: `dependencies`, `optional-dependencies` TODO: add more like `requirements`
-# * output_file:
-#   - is used to specify the file to output the results to, by default this is the current `pyproject.toml` file.
-#     this usually only needs to be specified when outputting to a different file like `requirements.txt`
-# * mode:
-#   - is used to determine the mode of the resolver and if it should traverse all imports or only lazy/eager imports.
-#   - valid options are: `all`, `lazy_only`, `eager_only`
-# * include:
-#  - TODO
-# * exclude:
-#  - TODO
-
-# Note: We can have multiple resolvers to construct different sets of outputs. For example if you have a library
-#       with core dependencies and optional dependencies, you can construct a resolver for each. And limit the results
-#       for the optional dependencies to only output the optional dependencies for that resolver.
 
 # general settings / overrides
 [tool.pydependence]
 
-# default, don't need to specify
-# - relative to the parent of this file
-default_root = ".."
+# defaults [don't need to specifiy in practice, unless you want different default behavior]:
+# - if a relative path, then relative to the *parent* of this file
+# - the resolved root is prepended to all relative paths in the rest of this config.
+#   e.g. for the `pydependence` repo, with files `pydependence/pyproject.toml` and `pydependence/pydependence`, then
+#        * ".." would mean relative files need to be references from the parent of the repo root e.g. "pydependence/pydependence/__main__.py",
+#          this is useful when resolving across multiple repos.
+#        * "." would mean relative files need to be reference from the repo root e.g. "pydependence/__main__.py",
+#          this is more useful when resolving across a single repo (default).
+default_root = "."
 
-# default, don't need to specify
+# defaults [don't need to specifiy in practice]:
+# - these settings can be overridden on individual output resolvers.
+# * visit_lazy:
+#   | If true, then vist all the lazy imports. Usually the lazy imports are removed from
+#   | the import graph and we don't traverse these edges. This on the other-hand allows
+#   | all these edges to be traversed. This is often useful if you want to create
+#   | packages that only require some minimal set of requirements, and everything else
+#   | that you define should be optional. Also useful if you want to generate a minimal
+#   | dependencies list, and then in optional dependency lists you want to create a full
+#   | set of requirements for everything!
+# * re_add_lazy: [A.K.A. shallow_include_lazy]
+#   | only applicable when `visit_lazy=False`, then in this case we re-add the lazy
+#   | imports that are directly referenced in all the traversed files, i.e. it is a
+#   | shallow include of lazy imports without continuing to traverse them. This means
+#   | that we add the lazy imports but we don't continue traversing. This is often not
+#   | useful with complex lazy import graphs that continue to reference more module
+#   | within the same scope as this could cause missing imports, rather specify
+#   | `visit_lazy=True` in this case.
+# * exclude_unvisited:
+#   | If true, then exclude imports that were not encountered as we traversed the import
+#   | graph. [NOTE]: this is probably useful if you don't want to include all imports
+#   | below a specific scope, but only want to resolve what is actually encountered.
+#   | Not entirely sure this has much of an effect?
+# * exclude_in_search_space:
+#   | If true, then exclude all imports that are part of the current scope. This usually
+#   | should not have any effect because imports are replaced as we traverse the graph
+#   | through the current scope, [NOTE] thus not entirely sure that this has any effect,
+#   | should it be a bug if we encounter any of these?
+# * exclude_builtins:
+#   | If true, then exclude all the python builtin package names from being output in
+#   | the requirements files. This usually should be true unless you are trying to debug
+#   | as this would generate invalid requirements list as these would not exist on pypi.
+# * strict_requirements_map:
+#   | Check that generated imports and requirements have entries in the versions list.
+#   | If strict mode is enabled, then an error is thrown if a version entry is missing.
+#   | If strict mode is disabled, then a warning should be given, and the root import
+#   | name is used instead of the requirement name, which may or may not match up
+#   | to an actual python package.
 default_resolve_rules = {visit_lazy=false, re_add_lazy=false, exclude_unvisited=true, exclude_in_search_space=true, exclude_builtins=true, strict_requirements_map=true}
 
-# default, don't need to specify
+# defaults [don't need to specifiy in practice, unless you want different default behavior]:
+# - these settings can be overridden on individual scopes.
+# * unreachable_mode
+#   | Specify how to handle modules that are unreachable, e.g. if there is no `__init__.py`
+#   | file in all the parents leading up to importing this module. If this is the case
+#   | then the module/package does not correctly follow python/PEP convention and is
+#   | technically invalid. By default, for `error`, we raise an exception and do not allow
+#   | the scope to be created, but this can be relaxed to `skip` or `keep` these files.
 default_scope_rules = {unreachable_mode="error"}
 
-# global allowed package versions & version to import map
+# map requirements and resolved imports to specific packages and version requirements.
+# - to generate dependency lists for conflicting package versions you can specify
+#   requirements more than once as long as you add a unique `env` entry. In the
+#   corresponding resolver, you can then reference this `env` entry to switch out the
+#   version you are after. If no `env` is set, then by default the env="default".
 versions = [
     "networkx",
     "pydantic>=2.0.0",
@@ -157,8 +107,26 @@ versions = [
     {requirement="pydependence", scope="pydependence"},
 ]
 
+# Output resolvers define the resolution and generation of output requirements by
+#   1. traversing a scope's directed module and import graph
+#   2. collecting all imports and mapping these using the version list above to specific pypi requirements.
+# Note that the starting point can be set to some subset of the scope
+#   e.g. if you script that you want to generate requirements for uses the `main.py` file,
+#        then you can generate requirements for this script specifically by setting it as
+#        the starting point, instead of generating requirements for the entire scope. Then
+#        only imports that this script uses and traverses to will actually be included in
+#        the output.
+# Note that by default lazy imports are not traversed or included.
+#   * Lazy imports are imports that are contained inside functions, methods or TYPE_CHECKING blocks.
+#     This means that some coding convention has to be followed when pydependence is used within
+#     projects to generate minimal requirements as it is expected that these imports should not be
+#     called at import time, instead possibly only at runtime if specific features of the library or
+#     framework are requested.
+# Note that by default we use a strict requirements mapping mode
+#   * if resolved imports and requirements do not have a corresponding `versions` entry, then an error will
+#     be thrown in this case. This is to ensure that devs know exactly what versions are being used within their
+#     program.
 resolvers = [
-    # output_name is optional, by default it is the same as the scope name, or sub scope
     {                                    output_mode='dependencies',          scope='pydependence'},
     {output_name='some',                 output_mode='optional-dependencies', scope='pydependence', visit_lazy=false},
     {output_name='all',                  output_mode='optional-dependencies', scope='pydependence', visit_lazy=true},
@@ -169,15 +137,18 @@ resolvers = [
     {output_name='dev',                  output_mode='optional-dependencies', raw=['pre-commit'], strict_requirements_map=false},
 ]
 
-# collections of packages and dependencies that will then be resolved.
-[[tool.pydependence.scopes]]
-name = "pydependence"
-pkg_paths = "pydependence/pydependence"
-
-[[tool.pydependence.scopes]]
-name = "pydependence-core"
-parents = ["pydependence"]
-limit = "pydependence._core"
+# Scopes represent graphs of modules (nodes) and their interconnecting
+# import statements (directed edges) that reference themselves or other modules.
+# - scopes are traversed by the resolvers in different ways to generate lists of requirements.
+# - scopes can be constructed from various different sources.
+#   * `pkg_paths` / `search_paths`
+# - scopes can inherit from eachother with `parents`
+# - scopes can be filtered down with `limit`
+# - scopes cannot have conflicting module names, each module name should have a one to one mapping to a specific file.
+scopes = [
+    {name = "pydependence", pkg_paths = "./pydependence"},
+    {name = "pydependence-core", parents = ["pydependence"], limit = "pydependence._core"},
+]
 
 # =========================================== #
 # PROJECT                                     #
@@ -236,7 +207,6 @@ dev = [
     "pre_commit", # [M]
     #     ← <manual: pre_commit>
 ]
-
 test = [
     # [AUTOGEN] by pydependence resolver 'test' **DO NOT EDIT** [AUTOGEN]
     "pytest", # [M]
