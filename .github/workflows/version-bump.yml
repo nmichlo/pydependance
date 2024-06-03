@@ -1,11 +1,10 @@
-# on merge to master from pull request
-name: Bump version
+name: Bump Version
 on:
   pull_request:
     types:
       - closed
     branches:
-      - master
+      - main
 
 jobs:
   build:
