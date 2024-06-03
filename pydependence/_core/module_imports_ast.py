@@ -163,11 +163,19 @@ class ManualSource:
         return f"{self.__class__.__name__}({self.orig_name})"
 
     def __eq__(self, other):
-        if isinstance(str, other):
+        if isinstance(other, str):
             return str(self) == other
         elif isinstance(other, ManualSource):
             return self.orig_name == other.orig_name
         return False
+
+    def __lt__(self, other):
+        if isinstance(other, str):
+            return str(self) < other
+        elif isinstance(other, ManualSource):
+            return self.orig_name < other.orig_name
+        else:
+            raise TypeError(f"Invalid types: {type(self)} < {type(other)}")
 
     def __hash__(self):
         return hash(str(self))
