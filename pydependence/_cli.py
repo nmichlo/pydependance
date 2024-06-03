@@ -582,7 +582,7 @@ class LoadedScopes:
 class PydependenceCfg(pydantic.BaseModel, extra="forbid"):
     # default root is relative to the parent of the pyproject.toml file
     # and is the folder containing the repo of the pyproject.toml file
-    default_root: str = ".."
+    default_root: str = "."
 
     # default write modes
     default_resolve_rules: _ResolveRules = pydantic.Field(
