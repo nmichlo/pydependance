@@ -105,6 +105,7 @@ versions = [
     "tomlkit",
     "packaging",
     {requirement="pydependence", scope="pydependence"},
+    "pytest",
 ]
 
 # Output resolvers define the resolution and generation of output requirements by
@@ -133,7 +134,7 @@ resolvers = [
     {output_name='core',                 output_mode='optional-dependencies', scope='pydependence', start_scope='pydependence-core', visit_lazy=true},
     {output_name='example-core-no-lazy', output_mode='optional-dependencies', scope='pydependence'},
     {output_name='example-legacy',       output_mode='optional-dependencies', scope='pydependence', env='legacy', visit_lazy=true},
-    {output_name='test',                 output_mode='optional-dependencies', raw=['pytest', 'pytest-cov'], strict_requirements_map=false},
+    {output_name='test',                 output_mode='optional-dependencies', scope="pydependence-tests", visit_lazy=true},
     {output_name='dev',                  output_mode='optional-dependencies', raw=['pre-commit'], strict_requirements_map=false},
 ]
 
@@ -148,6 +149,7 @@ resolvers = [
 scopes = [
     {name = "pydependence", pkg_paths = "./pydependence"},
     {name = "pydependence-core", parents = ["pydependence"], limit = "pydependence._core"},
+    {name = "pydependence-tests", parents = ["pydependence"], pkg_paths = "./tests"}
 ]
 
 # =========================================== #
@@ -209,10 +211,22 @@ dev = [
 ]
 test = [
     # [AUTOGEN] by pydependence resolver 'test' **DO NOT EDIT** [AUTOGEN]
-    "pytest", # [M]
-    #     ← <manual: pytest>
-    "pytest_cov", # [M]
-    #     ← <manual: pytest_cov>
+    "networkx",
+    #     ← pydependence._core.modules_resolver
+    #     ← pydependence._core.modules_scope
+    "packaging",
+    #     ← pydependence._cli
+    "pydantic>=2.0.0",
+    #     ← pydependence._cli
+    "pytest",
+    #     ← tests.test_module_data
+    #     ← tests.test_utils
+    "stdlib_list",
+    #     ← pydependence._core.builtin
+    "tomlkit", # [L]
+    #     ← [L] pydependence._core.requirements_out
+    #     ← [L] pydependence._core.utils
+    #     ← [L] tests.test_module_data
 ]
 some = [
     # [AUTOGEN] by pydependence resolver 'some' **DO NOT EDIT** [AUTOGEN]
