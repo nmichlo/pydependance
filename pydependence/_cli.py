@@ -61,12 +61,55 @@ from pydependence._core.utils import (
 
 
 class _ResolveRules(pydantic.BaseModel, extra="forbid"):
+
+    # If true, then vist all the lazy imports. Usually the lazy imports are removed from
+    # the import graph and we don't traverse these edges. This on the other-hand allows
+    # all these edges to be traversed. This is often useful if you want to create
+    # packages that only require some minimal set of requirements, and everything else
+    # that you define should be optional. Also useful if you want to generate a minimal
+    # dependencies list, and then in optional dependency lists you want to create a full
+    # set of requirements for everything!
     visit_lazy: Optional[bool] = None
+
+    # only applicable when `visit_lazy=False`, then in this case we re-add the lazy
+    # imports that are directly referenced in all the traversed files, i.e. it is a
+    # shallow include of lazy imports without continuing to traverse them. This means
+    # that we add the lazy imports but we don't continue traversing. This is often not
+    # useful with complex lazy import graphs that continue to reference more module
+    # within the same scope as this could cause missing imports, rather specify
+    # `visit_lazy=True` in this case.
+    # * [A.K.A.] `shallow_include_lazy=True`
     re_add_lazy: Optional[bool] = None
+
+    # If true, then exclude imports that were not encountered as we traversed the import
+    # graph. [NOTE]: this is probably useful if you don't want to include all imports
+    # below a specific scope, but only want to resolve what is actually encountered.
+    # Not entirely sure this has much of an effect?
     exclude_unvisited: Optional[bool] = None
+
+    # If true, then exclude all imports that are part of the current scope. This usually
+    # should not have any effect because imports are replaced as we traverse the graph
+    # through the current scope, [NOTE] thus not entirely sure that this has any effect,
+    # should it be a bug if we encounter any of these?
     exclude_in_search_space: Optional[bool] = None
+
+    # If true, then exclude all the python builtin package names from being output in
+    # the requirements files. This usually should be true unless you are trying to debug
+    # as this would generate invalid requirements list as these would not exist on pypi.
     exclude_builtins: Optional[bool] = None
+
+    # Check that generated imports and requirements have entries in the versions list.
+    # If strict mode is enabled, then an error is thrown if a version entry is missing.
+    # If strict mode is disabled, then a warning should be given, and the root import
+    # name is used instead of the requirement name, which may or may not match up
+    # to an actual python package.
     strict_requirements_map: Optional[bool] = None
+
+    # TODO: we should add some sort of option to ensure that generated dependency lists
+    #       exactly match some pre-defined set, while also outputting this set.
+
+    # TODO: we do not yet ensure that raw added requirements do not conflict with
+    #       generated requirements.
 
     @classmethod
     def make_default_base_rules(cls):

@@ -1080,10 +1080,11 @@ def test_requirements_txt_gen(mapper: RequirementsMapper):
 
     imports = scope_all.resolve_imports(
         start_scope=None,
+        visit_lazy=False,
+        re_add_lazy=False,
+        exclude_unvisited=True,
         exclude_in_search_space=True,
         exclude_builtins=True,
-        exclude_unvisited=True,
-        visit_lazy=False,
     )
     mapped = mapper.generate_output_requirements(
         imports,
