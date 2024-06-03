@@ -414,6 +414,11 @@ class CfgVersion(pydantic.BaseModel, extra="forbid", arbitrary_types_allowed=Tru
 
 class _ScopeRules(pydantic.BaseModel, extra="forbid"):
 
+    # Specify how to handle modules that are unreachable, e.g. if there is no `__init__.py`
+    # file in all the parents leading up to importing this module. If this is the case
+    # then the module/package does not correctly follow python/PEP convention and is
+    # technically invalid. By default, for `error`, we raise an exception and do not allow
+    # the scope to be created, but this can be relaxed to `skip` or `keep` these files.
     unreachable_mode: Optional[UnreachableModeEnum] = None
 
     @classmethod
