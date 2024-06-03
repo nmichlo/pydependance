@@ -20,16 +20,16 @@ versions = [
 resolvers = [
     {output_mode='dependencies', scope='all'},
     {output_mode='optional-dependencies', scope='all', output_name='all', visit_lazy=true},
-    {output_mode='optional-dependencies', scope='all', start_scope="B1", output_name='B1_all', visit_lazy=true},
-    {output_mode='optional-dependencies', scope='all', start_scope="B1", output_name='B1_some', visit_lazy=false, re_add_lazy=false},
-    {output_mode='optional-dependencies', scope='all', start_scope="B1", output_name='B1_some_readd', visit_lazy=false, re_add_lazy=true},
+    {output_mode='optional-dependencies', scope='all', start_scope="B1", output_name='B1-all', visit_lazy=true},
+    {output_mode='optional-dependencies', scope='all', start_scope="B1", output_name='B1-some', visit_lazy=false, re_add_lazy=false},
+    {output_mode='optional-dependencies', scope='all', start_scope="B1", output_name='B1-some-readd', visit_lazy=false, re_add_lazy=true},
     {output_mode='optional-dependencies', output_name='test', raw=['pytest>=6', 'pytest-cov']},
-    {output_mode='optional-dependencies', output_name='test_alt', raw=['pytest', 'pytest-cov>=4']},
-    {output_mode='optional-dependencies', output_name='raw_resolve_1', raw=['opencv-python']},
-    {output_mode='optional-dependencies', output_name='raw_resolve_2a', raw=['opencv-python-contrib']},
-    {output_mode='optional-dependencies', output_name='raw_resolve_2b', raw=['opencv_python_contrib']},
-    {output_mode='optional-dependencies', output_name='raw_resolve_3a', raw=['opencv-python-contrib'], env="alt"},
-    {output_mode='optional-dependencies', output_name='raw_resolve_3b', raw=['opencv_python_contrib'], env="alt"},
+    {output_mode='optional-dependencies', output_name='test-alt', raw=['pytest', 'pytest-cov>=4']},
+    {output_mode='optional-dependencies', output_name='raw-resolve-1', raw=['opencv-python']},
+    {output_mode='optional-dependencies', output_name='raw-resolve-2a', raw=['opencv-python-contrib']},
+    {output_mode='optional-dependencies', output_name='raw-resolve-2b', raw=['opencv_python_contrib']},
+    {output_mode='optional-dependencies', output_name='raw-resolve-3a', raw=['opencv-python-contrib'], env="alt"},
+    {output_mode='optional-dependencies', output_name='raw-resolve-3b', raw=['opencv_python_contrib'], env="alt"},
     {output_mode='optional-dependencies', output_name='dev', raw=['pre-commit']},
 ]
 
@@ -107,8 +107,8 @@ all = [
     "package",
     #     ← t_ast_parser
 ]
-B1_all = [
-    # [AUTOGEN] by pydependence resolver 'B1_all' **DO NOT EDIT** [AUTOGEN]
+B1-all = [
+    # [AUTOGEN] by pydependence resolver 'B1-all' **DO NOT EDIT** [AUTOGEN]
     "extern_C",
     #     ← C
     "extern_D",
@@ -120,11 +120,11 @@ B1_all = [
     "lazy_E", # [L]
     #     ← [L] lazy_D
 ]
-B1_some = [
-    # [AUTOGEN] by pydependence resolver 'B1_some' **DO NOT EDIT** [AUTOGEN]
+B1-some = [
+    # [AUTOGEN] by pydependence resolver 'B1-some' **DO NOT EDIT** [AUTOGEN]
 ]
-B1_some_readd = [
-    # [AUTOGEN] by pydependence resolver 'B1_some_readd' **DO NOT EDIT** [AUTOGEN]
+B1-some-readd = [
+    # [AUTOGEN] by pydependence resolver 'B1-some-readd' **DO NOT EDIT** [AUTOGEN]
     "extern_b1", # [L]
     #     ← [L] B.b1
 ]
@@ -135,8 +135,8 @@ test = [
     "pytest_cov", # [M]
     #     ← <manual: pytest_cov>
 ]
-test_alt = [
-    # [AUTOGEN] by pydependence resolver 'test_alt' **DO NOT EDIT** [AUTOGEN]
+test-alt = [
+    # [AUTOGEN] by pydependence resolver 'test-alt' **DO NOT EDIT** [AUTOGEN]
     "pytest", # [M]
     #     ← <manual: pytest>
     "pytest_cov>=4", # [M]
@@ -147,28 +147,28 @@ dev = [
     "pre_commit", # [M]
     #     ← <manual: pre_commit>
 ]
-raw_resolve_1 = [
-    # [AUTOGEN] by pydependence resolver 'raw_resolve_1' **DO NOT EDIT** [AUTOGEN]
+raw-resolve-1 = [
+    # [AUTOGEN] by pydependence resolver 'raw-resolve-1' **DO NOT EDIT** [AUTOGEN]
     "opencv_python", # [M]
     #     ← <manual: opencv_python>
 ]
-raw_resolve_2a = [
-    # [AUTOGEN] by pydependence resolver 'raw_resolve_2a' **DO NOT EDIT** [AUTOGEN]
+raw-resolve-2a = [
+    # [AUTOGEN] by pydependence resolver 'raw-resolve-2a' **DO NOT EDIT** [AUTOGEN]
     "opencv-python-contrib==1", # [M]
     #     ← <manual: opencv_python_contrib>
 ]
-raw_resolve_2b = [
-    # [AUTOGEN] by pydependence resolver 'raw_resolve_2b' **DO NOT EDIT** [AUTOGEN]
+raw-resolve-2b = [
+    # [AUTOGEN] by pydependence resolver 'raw-resolve-2b' **DO NOT EDIT** [AUTOGEN]
     "opencv-python-contrib==1", # [M]
     #     ← <manual: opencv_python_contrib>
 ]
-raw_resolve_3a = [
-    # [AUTOGEN] by pydependence resolver 'raw_resolve_3a' **DO NOT EDIT** [AUTOGEN]
+raw-resolve-3a = [
+    # [AUTOGEN] by pydependence resolver 'raw-resolve-3a' **DO NOT EDIT** [AUTOGEN]
     "opencv_python_contrib==2", # [M]
     #     ← <manual: opencv_python_contrib>
 ]
-raw_resolve_3b = [
-    # [AUTOGEN] by pydependence resolver 'raw_resolve_3b' **DO NOT EDIT** [AUTOGEN]
+raw-resolve-3b = [
+    # [AUTOGEN] by pydependence resolver 'raw-resolve-3b' **DO NOT EDIT** [AUTOGEN]
     "opencv_python_contrib==2", # [M]
     #     ← <manual: opencv_python_contrib>
 ]

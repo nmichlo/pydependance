@@ -1438,19 +1438,19 @@ def test_pydeps_cli():
             "lazy_E",
             "package",
         ],
-        "B1_all": ["extern_C", "extern_D", "extern_b1", "extern_b2", "lazy_E"],
-        "B1_some": [],
-        "B1_some_readd": ["extern_b1"],
+        "B1-all": ["extern_C", "extern_D", "extern_b1", "extern_b2", "lazy_E"],
+        "B1-some": [],
+        "B1-some-readd": ["extern_b1"],
         "dev": ["pre_commit"],
-        "raw_resolve_1": [
+        "raw-resolve-1": [
             "opencv_python",
         ],
-        "raw_resolve_2a": ["opencv-python-contrib==1"],  # test normalisation
-        "raw_resolve_2b": ["opencv-python-contrib==1"],  # test normalisation
-        "raw_resolve_3a": ["opencv_python_contrib==2"],  # test normalisation
-        "raw_resolve_3b": ["opencv_python_contrib==2"],  # test normalisation
+        "raw-resolve-2a": ["opencv-python-contrib==1"],  # test normalisation
+        "raw-resolve-2b": ["opencv-python-contrib==1"],  # test normalisation
+        "raw-resolve-3a": ["opencv_python_contrib==2"],  # test normalisation
+        "raw-resolve-3b": ["opencv_python_contrib==2"],  # test normalisation
         "test": ["pytest>=6", "pytest_cov"],
-        "test_alt": ["pytest", "pytest_cov>=4"],
+        "test-alt": ["pytest", "pytest_cov>=4"],
     }
 
 
