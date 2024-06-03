@@ -168,24 +168,35 @@ class _Output(_ResolveRules, extra="forbid"):
     # output
     output_mode: str
     output_file: str
+
+    # !!!NB!!! DO NOT USE DIRECTLY! INSTEAD, USE `get_output_extras_name`
     output_name: Optional[str] = None
 
-    def get_output_name(self) -> str:
+    def get_output_extras_name(self) -> str:
         if self.output_name is not None:
-            return self.output_name
+            name = self.output_name
         elif self.start_scope is not None:
-            return self.start_scope
+            name = self.start_scope
         elif self.scope is not None:
-            return self.scope
+            name = self.scope
         else:
             raise ValueError(
                 f"output_name cannot be determined, please set output_name, start_scope, or scope for: {self}"
             )
+        return normalize_extras_name(name, strict=False)
 
     def get_manual_imports(self):
         if not self.raw:
             return []
         return [ManualImportInfo.from_target(r) for r in self.raw]
+
+    @pydantic.field_validator("output_name", mode="before")
+    @classmethod
+    def _validate_output_name(cls, v):
+        # TODO: should maybe allow non-strict mode?
+        if v is not None:
+            return normalize_extras_name(v, strict=True)
+        return v
 
     @pydantic.field_validator("raw", mode="before")
     @classmethod
@@ -193,7 +204,7 @@ class _Output(_ResolveRules, extra="forbid"):
         if v is not None:
             normalized = []
             for r in v:
-                normalized.append(normalize_pkg_name(r))
+                normalized.append(normalize_pkg_name(r, strict=False))
             return normalized
         return v
 
@@ -251,11 +262,12 @@ class _Output(_ResolveRules, extra="forbid"):
                 imports=resolved_imports + manual_imports,
                 requirements_env=self.env,
                 strict=self.strict_requirements_map,
-                resolver_name=self.get_output_name(),
+                resolver_name=self.get_output_extras_name(),
             )
         except NoConfiguredRequirementMappingError as e:
             raise NoConfiguredRequirementMappingError(
-                f"[CONFIG]: {self.get_output_name()} [ERROR]: {str(e)}", e.imports
+                f"[CONFIG]: {self.get_output_extras_name()} [ERROR]: {str(e)}",
+                e.imports,
             ) from e
         # 3. write requirements
         self._write_requirements(
@@ -264,7 +276,7 @@ class _Output(_ResolveRules, extra="forbid"):
 
     def _write_requirements(self, mapped_requirements: OutMappedRequirements) -> None:
         raise NotImplementedError(
-            f"tried to write imports for {repr(self.get_output_name())}, write_imports not implemented for {self.__class__.__name__}"
+            f"tried to write imports for {repr(self.get_output_extras_name())}, write_imports not implemented for {self.__class__.__name__}"
         )
 
 
@@ -299,7 +311,7 @@ class _OutputPyprojectOptionalDeps(_Output):
         )
         toml_file_replace_array(
             file=self.output_file,
-            keys=["project", "optional-dependencies", self.get_output_name()],
+            keys=["project", "optional-dependencies", self.get_output_extras_name()],
             array=array,
         )
 
@@ -341,14 +353,43 @@ class InvalidRequirementsName(ValueError):
     pass
 
 
-def normalize_pkg_name(string: str):
+class InvalidExtrasName(ValueError):
+    pass
+
+
+def normalize_pkg_name(string: str, strict: bool = True):
+    """
+    Ensure uses "_" instead of "-", and no whitespace. Also convert to lowercase.
+    """
     norm = string.replace("-", "_").lower()
     if any(c in norm for c in [" ", "\t", "\n"]):
         raise InvalidRequirementsName(f"Requirements name is invalid: {repr(string)}")
     if norm != string:
-        warnings.warn(
-            f"normalized requirements name from {repr(string)} to {repr(norm)}"
-        )
+        if strict:
+            raise InvalidRequirementsName(
+                f"Requirements name is invalid: {repr(string)}, should be: {repr(norm)}"
+            )
+        else:
+            warnings.warn(
+                f"normalized requirements name from {repr(string)} to {repr(norm)}"
+            )
+    return norm
+
+
+def normalize_extras_name(string: str, strict: bool = True):
+    """
+    Ensure uses "-" instead of "_", and no whitespace. Keeps case.
+    """
+    norm = string.replace("_", "-")
+    if any(c in norm for c in [" ", "\t", "\n"]):
+        raise InvalidExtrasName(f"Extras name is invalid: {repr(string)}")
+    if norm != string:
+        if strict:
+            raise InvalidExtrasName(
+                f"Extras name is invalid: {repr(string)}, should be: {repr(norm)}"
+            )
+        else:
+            warnings.warn(f"normalized extras name from {repr(string)} to {repr(norm)}")
     return norm
 
 
@@ -367,7 +408,7 @@ class CfgVersion(pydantic.BaseModel, extra="forbid", arbitrary_types_allowed=Tru
 
     @property
     def package(self) -> str:
-        return normalize_pkg_name(self.parsed_requirement.name)
+        return normalize_pkg_name(self.parsed_requirement.name, strict=False)
 
     @classmethod
     def from_string(cls, requirement: str):
@@ -719,7 +760,7 @@ class PydependenceCfg(pydantic.BaseModel, extra="forbid"):
         names_all = set()
         names_optional_deps = set()
         for output in self.resolvers:
-            name = output.get_output_name()
+            name = output.get_output_extras_name()
             if name in names_all:
                 warnings.warn(
                     f"output name {repr(name)} is not unique across all resolvers!"

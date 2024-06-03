@@ -131,8 +131,8 @@ resolvers = [
     {output_name='some',                 output_mode='optional-dependencies', scope='pydependence', visit_lazy=false},
     {output_name='all',                  output_mode='optional-dependencies', scope='pydependence', visit_lazy=true},
     {output_name='core',                 output_mode='optional-dependencies', scope='pydependence', start_scope='pydependence-core', visit_lazy=true},
-    {output_name='example_core_no_lazy', output_mode='optional-dependencies', scope='pydependence'},
-    {output_name='example_legacy',       output_mode='optional-dependencies', scope='pydependence', env='legacy', visit_lazy=true},
+    {output_name='example-core-no-lazy', output_mode='optional-dependencies', scope='pydependence'},
+    {output_name='example-legacy',       output_mode='optional-dependencies', scope='pydependence', env='legacy', visit_lazy=true},
     {output_name='test',                 output_mode='optional-dependencies', raw=['pytest', 'pytest-cov'], strict_requirements_map=false},
     {output_name='dev',                  output_mode='optional-dependencies', raw=['pre-commit'], strict_requirements_map=false},
 ]
@@ -252,8 +252,8 @@ core = [
     #     ← [L] pydependence._core.requirements_out
     #     ← [L] pydependence._core.utils
 ]
-example_core_no_lazy = [
-    # [AUTOGEN] by pydependence resolver 'example_core_no_lazy' **DO NOT EDIT** [AUTOGEN]
+example-core-no-lazy = [
+    # [AUTOGEN] by pydependence resolver 'example-core-no-lazy' **DO NOT EDIT** [AUTOGEN]
     "networkx",
     #     ← pydependence._core.modules_resolver
     #     ← pydependence._core.modules_scope
@@ -264,8 +264,8 @@ example_core_no_lazy = [
     "stdlib_list",
     #     ← pydependence._core.builtin
 ]
-example_legacy = [
-    # [AUTOGEN] by pydependence resolver 'example_legacy' **DO NOT EDIT** [AUTOGEN]
+example-legacy = [
+    # [AUTOGEN] by pydependence resolver 'example-legacy' **DO NOT EDIT** [AUTOGEN]
     "networkx",
     #     ← pydependence._core.modules_resolver
     #     ← pydependence._core.modules_scope
