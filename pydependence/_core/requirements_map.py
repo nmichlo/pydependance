@@ -339,7 +339,7 @@ class RequirementsMapper:
         # 3. return the root
         if strict:
             raise NoConfiguredRequirementMappingError(
-                msg=f"could not find a mapped requirement for import: {repr(import_)}, define a scope or glob matcher for this import, or set disable strict mode!",
+                msg=f"could not find import to requirement mappings: {repr(import_)},\ndefine a scope or glob matcher for this import, or set disable strict mode!",
                 imports={import_},
             )
         else:
@@ -445,10 +445,14 @@ class RequirementsMapper:
             err_imports = {imp for e in errors for imp in e.imports}
             err_roots = {imp.split(".")[0] for imp in err_imports}
             raise NoConfiguredRequirementMappingError(
-                msg=f"could not find import to requirement mappings for, "
-                f"roots: {sorted(err_roots)}, or full imports: {sorted(err_imports)}, "
-                f"available matchers: {self._get_matcher_cfg_sting(requirements_env=requirements_env)}, "
-                f"otherwise if running from a config file, set strict_requirements_map=False to disable strict mode and use the root module name instead.",
+                msg=(
+                    f"could not find import to requirement mappings for roots:"
+                    f"\n  * {', '.join(map(repr, map(str, sorted(set(err_roots)))))},"
+                    f"\nor full imports:"
+                    f"\n  * {', '.join(map(repr, map(str, sorted(set(err_imports)))))},"
+                    f"\navailable matchers: {self._get_matcher_cfg_sting(requirements_env=requirements_env) or '<NONE>'},"
+                    f"\notherwise if running from a config file, set strict_requirements_map=False to disable strict mode and use the root module name instead."
+                ),
                 imports=err_imports,
             )
 

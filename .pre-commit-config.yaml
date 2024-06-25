@@ -37,7 +37,7 @@ repos:
         language: python
         always_run: true
         verbose: true
-        entry: python3 -m pydependence.__main__
+        entry: python3 -m pydependence.__main__ pyproject.toml
         files: ^pyproject\.toml$
         language_version: "3.9"
         additional_dependencies:
