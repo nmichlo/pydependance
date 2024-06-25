@@ -38,7 +38,7 @@ repos:
         always_run: true
         verbose: true
         entry: python3 -m pydependence.__main__ pyproject.toml
-        files: ^pyproject\.toml$
+        files: ^pyproject\.toml$  # TODO: why this and the above?
         language_version: "3.9"
         additional_dependencies:
           - 'pydantic==2.*'
