@@ -11,5 +11,6 @@
     - 'pydantic==2.*'
     - 'packaging'
     - 'networkx'
-    - 'stdlib_list'
+    - 'stdlib-list'
     - 'tomlkit'
+    - 'typing-extensions'
