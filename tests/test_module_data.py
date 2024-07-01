@@ -22,6 +22,7 @@
 # SOFTWARE.                                                                      #
 # ============================================================================== #
 
+import sys
 from pathlib import Path
 
 import pytest
@@ -1452,6 +1453,46 @@ def test_pydeps_cli():
         "test": ["pytest>=6", "pytest_cov"],
         "test-alt": ["pytest", "pytest_cov>=4"],
     }
+
+
+# ========================================================================= #
+# TEST CLI                                                                  #
+# ========================================================================= #
+
+
+def test_pydeps_cli_main():
+    import subprocess
+
+    # run the help
+    result = subprocess.run(
+        [sys.executable, "-m", "pydependence", "--help"],
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 0
+    assert (
+        b"PyDependence: A tool for scanning and resolving python dependencies"
+        in result.stdout
+    )
+    assert result.stderr == b""
+
+    # run the cli
+    result = subprocess.run(
+        [sys.executable, "-m", "pydependence"], capture_output=True, check=False
+    )
+    assert result.returncode != 0
+    assert result.stdout == b""
+    assert b"arguments are required: config" in result.stderr
+
+    # run the cli
+    result = subprocess.run(
+        [sys.executable, "-m", "pydependence", str(PKGS_ROOT_PYPROJECT)],
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 0
+    assert result.stdout == b""  # TODO: should change this?
+    assert result.stderr != b""
 
 
 # ========================================================================= #
