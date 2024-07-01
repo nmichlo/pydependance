@@ -869,13 +869,14 @@ class _PyprojectToml(pydantic.BaseModel, extra="ignore"):
 
 
 def pydeps(
-    file: Union[str, Path],
+    *,
+    config_path: Union[str, Path],
 ):
     # 1. get absolute
-    file = Path(file).resolve().absolute()
-    LOGGER.info(f"loading pydependence config from: {file}")
+    config_path = Path(config_path).resolve().absolute()
+    LOGGER.info(f"loading pydependence config from: {config_path}")
     # 2. load pyproject.toml
-    pydependence = PydependenceCfg.from_file_automatic(file)
+    pydependence = PydependenceCfg.from_file_automatic(config_path)
     # 3. generate search spaces, recursively resolving!
     loaded_scopes = pydependence.load_scopes()
     # 4. generate outputs

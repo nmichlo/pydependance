@@ -1403,7 +1403,7 @@ def test_pydeps_cli():
     reset_optional_deps = doc["project"]["optional-dependencies"]["all"]
 
     # 4. run cli
-    pydeps(PKGS_ROOT_PYPROJECT)
+    pydeps(config_path=PKGS_ROOT_PYPROJECT)
 
     # 5. load modified document
     doc = load_toml_document(PKGS_ROOT_PYPROJECT)

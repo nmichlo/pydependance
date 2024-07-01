@@ -33,4 +33,4 @@ repos:
     rev: 0bf566220249c4b0cfc87e5f5ac9fd62e81bbfa1
     hooks:
       - id: pydependence
-        args: ["pyproject.toml"]
+        args: ["--config", "pyproject.toml"]
