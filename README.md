@@ -10,18 +10,19 @@
     <a href="https://choosealicense.com/licenses/mit/" target="_blank">
         <img alt="license" src="https://img.shields.io/github/license/nmichlo/pydependence?style=flat-square&color=lightgrey"/>
     </a>
-    <!-- <a href="https://pypi.org/project/pydependence" target="_blank"> -->
-    <!--     <img alt="python versions" src="https://img.shields.io/pypi/pyversions/pydependence?style=flat-square"/> -->
-    <!-- </a> -->
+    <a href="https://pypi.org/project/pydependence" target="_blank">
+        <img alt="python versions" src="https://img.shields.io/pypi/pyversions/pydependence?style=flat-square"/>
+    </a>
     <a href="https://pypi.org/project/pydependence" target="_blank">
         <img alt="pypi version" src="https://img.shields.io/pypi/v/pydependence?style=flat-square&color=blue"/>
     </a>
-    <!-- <a href="https://github.com/nmichlo/pydependence/actions?query=workflow%3Atest"> -->
-    <!--     <img alt="tests status" src="https://img.shields.io/github/workflow/status/nmichlo/pydependence/test?label=tests&style=flat-square"/> -->
-    <!-- </a> -->
-    <!-- <a href="https://codecov.io/gh/nmichlo/pydependence/"> -->
-    <!--     <img alt="code coverage" src="https://img.shields.io/codecov/c/gh/nmichlo/pydependence?token=86IZK3J038&style=flat-square"/> -->
-    <!-- </a> -->
+    <a href="https://github.com/nmichlo/pydependence/actions/workflows/python-test.yml">
+        <img alt="tests status" src="https://img.shields.io/github/actions/workflow/status/nmichlo/pydependence/python-test.yml?branch=main&label=tests&style=flat-square"/>
+    </a>
+    <a href="https://codecov.io/gh/nmichlo/pydependence">
+        <!-- <img src="https://codecov.io/gh/nmichlo/pydependence/graph/badge.svg?token=DOMMIVWZQF"/> -->
+        <img src="https://img.shields.io/codecov/c/github/nmichlo/pydependence?style=flat-square&color=green">
+    </a>
 </p>
 
 <p align="center">
@@ -118,7 +119,7 @@ Add a pre-commit entry pointing to your pyproject.toml file or configuration fil
 
 ```yaml
   - repo: https://github.com/nmichlo/pydependence
-    rev: v0.4.0
+    rev: v0.4.1
     hooks:
       - id: pydependence
         args: ["pyproject.toml"]
