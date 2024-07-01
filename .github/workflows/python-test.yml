@@ -3,12 +3,7 @@
 
 name: test
 
-on:
-  push:
-    branches: [ "main", "dev*", "feature*", "fix*"]
-    tags: [ '*' ]
-  pull_request:
-    branches: [ "main", "dev*", "feature*", "fix*"]
+on: [pull_request, push]
 
 jobs:
   test:
