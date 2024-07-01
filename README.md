@@ -119,7 +119,7 @@ Add a pre-commit entry pointing to your pyproject.toml file or configuration fil
 
 ```yaml
   - repo: https://github.com/nmichlo/pydependence
-    rev: v0.4.1
+    rev: v0.4.2
     hooks:
       - id: pydependence
         args: ["pyproject.toml"]

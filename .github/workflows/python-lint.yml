@@ -1,5 +1,10 @@
 name: pre-commit
-on: [pull_request]
+
+on:
+  push:
+    tags: ["**"]
+  pull_request:
+    branches: ["**"]
 
 jobs:
   pre-commit:
