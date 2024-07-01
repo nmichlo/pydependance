@@ -27,12 +27,38 @@ from pathlib import Path
 
 import pytest
 
+import pydependence._colors as C
 from pydependence._core.utils import (
     apply_root_to_path_str,
     assert_valid_import_name,
     assert_valid_module_path,
     assert_valid_tag,
 )
+
+
+def test_colors():
+    for attr in [
+        "RST",
+        # dark colors
+        "GRY",
+        "lRED",
+        "lGRN",
+        "lYLW",
+        "lBLU",
+        "lMGT",
+        "lCYN",
+        "WHT",
+        # light colors
+        "BLK",
+        "RED",
+        "GRN",
+        "YLW",
+        "BLU",
+        "MGT",
+        "CYN",
+        "lGRY",
+    ]:
+        assert hasattr(C, attr)
 
 
 def test_assert_valid_tag():
