@@ -7,11 +7,9 @@
 name: publish
 
 on:
+  push:
   release:
     types: [created]
-  push:
-    branches:
-      - main
 
 jobs:
   pypi-publish:
