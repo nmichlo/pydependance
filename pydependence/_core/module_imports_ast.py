@@ -25,6 +25,7 @@
 
 import ast
 import dataclasses
+import sys
 import warnings
 from collections import Counter, defaultdict
 from enum import Enum
@@ -32,6 +33,22 @@ from typing import DefaultDict, Dict, List, Literal, NamedTuple, Optional, Tuple
 
 from pydependence._core.module_data import ModuleMetadata
 from pydependence._core.utils import assert_valid_import_name, assert_valid_module_path
+
+# ========================================================================= #
+# Polyfill                                                                  #
+# ========================================================================= #
+
+
+def ast_unparse(node: ast.AST) -> str:
+    # if not python 3.8 then call ast.unparse, otherwise polyfill
+    if hasattr(ast, "unparse"):
+        return ast.unparse(node)
+    else:
+        warnings.warn(
+            f"Current version of python: {sys.version_info} does not support `ast.unparse`"
+        )
+        return str(node)
+
 
 # ========================================================================= #
 # Allowed Nodes Leading To Imports                                          #
@@ -226,7 +243,7 @@ class _AstImportsCollector(ast.NodeVisitor):
 
     def _node_warn(self, node: ast.AST, message: str):
         warnings.warn_explicit(
-            message=f"`{ast.unparse(node)}`: {message}",
+            message=f"`{ast_unparse(node)}`: {message}",
             category=SyntaxWarning,
             filename=str(self._module_info.path),
             lineno=node.lineno,
@@ -382,7 +399,7 @@ class _AstImportsCollector(ast.NodeVisitor):
         # - make sure that the argument is a string
         if not isinstance(arg, ast.Constant) or not isinstance(arg.value, str):
             self._node_warn(
-                node, f"called with non-string argument: `{ast.unparse(arg)}`"
+                node, f"called with non-string argument: `{ast_unparse(arg)}`"
             )
             return
         # - validate the import string
