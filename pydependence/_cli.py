@@ -412,6 +412,21 @@ def normalize_extras_name(string: str, strict: bool = True):
     return norm
 
 
+def normalize_import_to_scope_name(string: str, strict: bool = True):
+    """
+    Ensure instead of "." we use "-", and instead of "*" we use "all".
+    """
+    norm = string.replace(".", "-").replace("*", "all")
+    if norm != string:
+        if strict:
+            raise ValueError(
+                f"import name is invalid: {repr(string)}, should be: {repr(norm)}"
+            )
+        else:
+            warnings.warn(f"normalized import name from {repr(string)} to {repr(norm)}")
+    return norm
+
+
 class CfgVersion(pydantic.BaseModel, extra="forbid", arbitrary_types_allowed=True):
     # the pip install requirement
     requirement: str
@@ -543,6 +558,14 @@ class CfgScope(_ScopeRules, extra="forbid"):
     @classmethod
     def _validate_exclude(cls, v):
         return [v] if isinstance(v, str) else v
+
+    @pydantic.field_validator("subscopes", mode="before")
+    @classmethod
+    def _validate_subscopes(cls, v):
+        # convert list to dict & normalize names
+        if isinstance(v, list):
+            return {x: normalize_import_to_scope_name(x, strict=False) for x in v}
+        return v
 
     def make_module_scope(self, loaded_scopes: "LoadedScopes" = None):
         m = ModulesScope()
