@@ -28,9 +28,9 @@ repos:
       - id: black
         args: ["--verbose", "--target-version=py39"]
 
-  # local repo
+  # this repo
   - repo: https://github.com/nmichlo/pydependence
     rev: 0bf566220249c4b0cfc87e5f5ac9fd62e81bbfa1
     hooks:
       - id: pydependence
-        args: ["--config", "pyproject.toml"]
+        args: ["pyproject.toml"]

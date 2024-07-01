@@ -27,7 +27,7 @@ def _parse_args() -> "PyDepsCliArgsProto":
         description="PyDependence: A tool for scanning and resolving python dependencies across files."
     )
     parser.add_argument(
-        "--config",
+        "config",
         type=str,
         help="The python file to analyse for dependencies.",
     )
