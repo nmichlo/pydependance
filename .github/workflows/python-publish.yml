@@ -8,7 +8,7 @@ name: publish
 
 on:
   push:
-    tags: ['*']
+    tags: ['v*.*.*']
   release:
     types: [created]
 
