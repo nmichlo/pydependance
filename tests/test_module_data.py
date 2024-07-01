@@ -904,7 +904,7 @@ def test_requirement_mapping():
     assert mapped == "INVALID"
     with pytest.raises(
         NoConfiguredRequirementMappingError,
-        match="could not find a mapped requirement for import: 'INVALID.IMPORT'",
+        match="could not find import to requirement mappings: 'INVALID.IMPORT'",
     ):
         mapper.map_import_to_requirement("INVALID.IMPORT", strict=True)
 
@@ -1403,7 +1403,7 @@ def test_pydeps_cli():
     reset_optional_deps = doc["project"]["optional-dependencies"]["all"]
 
     # 4. run cli
-    pydeps(PKGS_ROOT_PYPROJECT)
+    pydeps(config_path=PKGS_ROOT_PYPROJECT)
 
     # 5. load modified document
     doc = load_toml_document(PKGS_ROOT_PYPROJECT)

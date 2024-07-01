@@ -21,17 +21,18 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE  #
 # SOFTWARE.                                                                      #
 # ============================================================================== #
-import sys
+import logging
 import warnings
 from collections import defaultdict
 from enum import Enum
 from pathlib import Path
-from typing import Annotated, Dict, List, Literal, Optional, Union
+from typing import Dict, List, Literal, Optional, Union
 
 import pydantic
 from packaging.requirements import Requirement
+from typing_extensions import Annotated
 
-from pydependence._core.module_imports_ast import ManualImportInfo, ManualSource
+from pydependence._core.module_imports_ast import ManualImportInfo
 from pydependence._core.modules_scope import (
     ModulesScope,
     RestrictMode,
@@ -54,6 +55,18 @@ from pydependence._core.utils import (
     toml_file_replace_array,
     txt_file_dump,
 )
+
+# python 3.8 support
+# TODO: this pattern is not yet supported by the lazy dependency resolver
+#       we should specifically add support for this pattern, as it is a common.
+# TODO: we should add the ability to exclude certain imports from the pydependence
+#       resolve to handle cases like this.
+# try:
+#     from typing import Annotated
+# except ImportError:
+#     from typing_extensions import Annotated
+
+LOGGER = logging.getLogger(__name__)
 
 # ========================================================================= #
 # CONFIGS                                                                   #
@@ -265,10 +278,9 @@ class _Output(_ResolveRules, extra="forbid"):
                 resolver_name=self.get_output_extras_name(),
             )
         except NoConfiguredRequirementMappingError as e:
-            raise NoConfiguredRequirementMappingError(
-                f"[CONFIG]: {self.get_output_extras_name()} [ERROR]: {str(e)}",
-                e.imports,
-            ) from e
+            msg = f"\n  | ".join(["", *str(e).split("\n")])
+            msg = f"[requirement-mapping-error] output: {self.get_output_extras_name()}{msg}"
+            raise NoConfiguredRequirementMappingError(msg, e.imports) from e
         # 3. write requirements
         self._write_requirements(
             mapped_requirements=mapped_requirements,
@@ -291,6 +303,7 @@ class _OutputRequirements(_Output):
             sources_roots=False,
             indent_size=4,
         )
+        LOGGER.info(f"writing requirements to: {self.output_file}")
         txt_file_dump(
             file=self.output_file,
             contents=string,
@@ -309,9 +322,13 @@ class _OutputPyprojectOptionalDeps(_Output):
             sources_roots=False,
             indent_size=4,
         )
+        out_name = self.get_output_extras_name()
+        LOGGER.info(
+            f"writing optional dependencies: {repr(out_name)} to: {self.output_file}"
+        )
         toml_file_replace_array(
             file=self.output_file,
-            keys=["project", "optional-dependencies", self.get_output_extras_name()],
+            keys=["project", "optional-dependencies", out_name],
             array=array,
         )
 
@@ -328,6 +345,7 @@ class _OutputPyprojectDeps(_Output):
             sources_roots=False,
             indent_size=4,
         )
+        LOGGER.info(f"writing dependencies to: {self.output_file}")
         toml_file_replace_array(
             file=self.output_file,
             keys=["project", "dependencies"],
@@ -690,30 +708,46 @@ class PydependenceCfg(pydantic.BaseModel, extra="forbid"):
             )
         return cfg
 
-    def apply_defaults(self, *, pyproject_path: Path):
-        if pyproject_path.name != "pyproject.toml":
-            raise ValueError(
-                f"path must be a pyproject.toml file, got: {pyproject_path}"
-            )
+    def apply_defaults(self, *, config_path: "Union[str, Path]"):
+        """
+        config_path is the path to the pyproject.toml file or the toml file that was
+        used to load the configuration. This is used to determine the default root path,
+        which is the folder containing the config. The default root is then used to
+        resolve all relative paths in the configuration.
+        """
+        config_path = Path(config_path)
 
         # helper
         self.default_root = apply_root_to_path_str(
-            pyproject_path.parent, self.default_root
+            config_path.parent, self.default_root
         )
-        s = lambda x: apply_root_to_path_str(self.default_root, x)
+
+        def _resolve_path(x: "Union[str, Path]") -> str:
+            return apply_root_to_path_str(self.default_root, x)
 
         # apply to all paths
         for scope in self.scopes:
-            scope.search_paths = [s(x) for x in scope.search_paths]
-            scope.pkg_paths = [s(x) for x in scope.pkg_paths]
+            scope.search_paths = [_resolve_path(x) for x in scope.search_paths]
+            scope.pkg_paths = [_resolve_path(x) for x in scope.pkg_paths]
         for output in self.resolvers:
             if output.output_file is not None:
-                output.output_file = s(output.output_file)
+                output.output_file = _resolve_path(output.output_file)
             if output.output_file is None:
                 if isinstance(
                     output, (_OutputPyprojectDeps, _OutputPyprojectOptionalDeps)
                 ):
-                    output.output_file = s(pyproject_path)
+                    output.output_file = _resolve_path(config_path)
+            # check kinds
+            if isinstance(output, (_OutputPyprojectDeps, _OutputPyprojectOptionalDeps)):
+                if Path(output.output_file).name != "pyproject.toml":
+                    raise ValueError(
+                        f"output_file must be the pyproject.toml file for: {output}"
+                    )
+            elif isinstance(output, _OutputRequirements):
+                if Path(output.output_file).suffix != ".txt":
+                    raise ValueError(
+                        f"output_file must be requirements*.txt for: {output}"
+                    )
 
         # also apply all default write modes
         self.default_scope_rules.set_defaults(_ScopeRules.make_default_base_rules())
@@ -797,30 +831,56 @@ class PydependenceCfg(pydantic.BaseModel, extra="forbid"):
                 requirements_mapper=requirements_mapper,
             )
 
+    # ... LOADING ...
+
+    @classmethod
+    def from_pyproject(cls, path: Path) -> "PydependenceCfg":
+        # 1. load pyproject.toml
+        toml = load_toml_document(path)
+        # 2. validate the model
+        pyproject = _PyprojectToml.model_validate(toml.unwrap())
+        pydependence = pyproject.tool.pydependence
+        # 3. override paths in cfg using the default root
+        pydependence.apply_defaults(config_path=path)
+        return pydependence
+
+    @classmethod
+    def from_toml_config(cls, path: Path) -> "PydependenceCfg":
+        # 1. load pyproject.toml
+        toml = load_toml_document(path)
+        # 2. validate the model
+        tool = _PyprojectTomlTools.model_validate(toml.unwrap())
+        pydependence = tool.pydependence
+        # 3. override paths in cfg using the default root
+        pydependence.apply_defaults(config_path=path)
+        return pydependence
+
+    @classmethod
+    def from_file_automatic(cls, path: Path) -> "PydependenceCfg":
+        if path.name == "pyproject.toml":
+            return cls.from_pyproject(path)
+        elif path.name == ".pydependence.toml":
+            return cls.from_toml_config(path)
+        elif path.suffix in (".toml", ".cfg"):
+            LOGGER.warning(
+                f"using legacy extension mode: {repr(path.suffix)}, not explicit file name as one of: 'pyproject.toml' OR '.pydependence.toml'"
+            )
+            return cls.from_toml_config(path)
+        else:
+            raise ValueError(f"unsupported file extension: {path.suffix} for: {path}")
+
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
 # CONFIG - PYPROJECT                                                        #
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
 
 
-class PyprojectTomlTools(pydantic.BaseModel, extra="ignore"):
+class _PyprojectTomlTools(pydantic.BaseModel, extra="ignore"):
     pydependence: PydependenceCfg
 
 
-class PyprojectToml(pydantic.BaseModel, extra="ignore"):
-    tool: PyprojectTomlTools = pydantic.Field(default_factory=PyprojectTomlTools)
-
-    @classmethod
-    def from_pyproject(cls, path: Path) -> "PyprojectToml":
-        # 1. load pyproject.toml
-        toml = load_toml_document(path)
-        # 2. validate the model
-        pyproject = PyprojectToml.model_validate(toml.unwrap())
-        # 3. override paths in cfg using the default root
-        pyproject.tool.pydependence.apply_defaults(
-            pyproject_path=path,
-        )
-        return pyproject
+class _PyprojectToml(pydantic.BaseModel, extra="ignore"):
+    tool: _PyprojectTomlTools = pydantic.Field(default_factory=_PyprojectTomlTools)
 
 
 # ========================================================================= #
@@ -829,25 +889,18 @@ class PyprojectToml(pydantic.BaseModel, extra="ignore"):
 
 
 def pydeps(
-    file: Optional[Union[str, Path]] = None,
+    *,
+    config_path: Union[str, Path],
 ):
-    # 0. cli
-    if file is None:
-        if len(sys.argv) == 1:
-            script = sys.argv[0]
-            file = Path(__file__).parent.parent / "pyproject.toml"
-        elif len(sys.argv) == 2:
-            script, file = sys.argv
-        else:
-            raise ValueError("too many arguments!")
     # 1. get absolute
-    file = Path(file).resolve().absolute()
+    config_path = Path(config_path).resolve().absolute()
+    LOGGER.info(f"loading pydependence config from: {config_path}")
     # 2. load pyproject.toml
-    pyproject = PyprojectToml.from_pyproject(file)
+    pydependence = PydependenceCfg.from_file_automatic(config_path)
     # 3. generate search spaces, recursively resolving!
-    loaded_scopes = pyproject.tool.pydependence.load_scopes()
+    loaded_scopes = pydependence.load_scopes()
     # 4. generate outputs
-    pyproject.tool.pydependence.write_all_outputs(loaded_scopes)
+    pydependence.write_all_outputs(loaded_scopes)
 
 
 # ========================================================================= #

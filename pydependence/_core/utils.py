@@ -93,8 +93,8 @@ def load_toml_document(
     import tomlkit.toml_document
 
     path = Path(path)
-    if not path.name.endswith(".toml"):
-        raise ValueError(f"path is not a .toml file: {path}")
+    # if not path.name.endswith(".toml"):
+    #     raise ValueError(f"path is not a .toml file: {path}")
     if not path.is_file():
         raise FileNotFoundError(f"path is not a file: {path}")
     with open(path) as fp:
