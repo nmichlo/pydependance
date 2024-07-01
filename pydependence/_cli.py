@@ -22,15 +22,15 @@
 # SOFTWARE.                                                                      #
 # ============================================================================== #
 import logging
-import sys
 import warnings
 from collections import defaultdict
 from enum import Enum
 from pathlib import Path
-from typing import Annotated, Dict, List, Literal, Optional, Union
+from typing import Dict, List, Literal, Optional, Union
 
 import pydantic
 from packaging.requirements import Requirement
+from typing_extensions import Annotated
 
 from pydependence._core.module_imports_ast import ManualImportInfo
 from pydependence._core.modules_scope import (
@@ -55,6 +55,16 @@ from pydependence._core.utils import (
     toml_file_replace_array,
     txt_file_dump,
 )
+
+# python 3.8 support
+# TODO: this pattern is not yet supported by the lazy dependency resolver
+#       we should specifically add support for this pattern, as it is a common.
+# TODO: we should add the ability to exclude certain imports from the pydependence
+#       resolve to handle cases like this.
+# try:
+#     from typing import Annotated
+# except ImportError:
+#     from typing_extensions import Annotated
 
 LOGGER = logging.getLogger(__name__)
 
