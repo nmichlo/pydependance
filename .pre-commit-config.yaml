@@ -30,7 +30,7 @@ repos:
 
   # this repo
   - repo: https://github.com/nmichlo/pydependence
-    rev: v0.4.0
+    rev: 27d3bc750602c687948fca627383b0dd034b3fce
     hooks:
       - id: pydependence
         args: ["pyproject.toml"]
