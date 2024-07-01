@@ -991,11 +991,13 @@ class PydependenceCfg(pydantic.BaseModel, extra="forbid"):
         # resolve the scopes!
         changed = False
         for output in self.resolvers:
-            changed = changed or output.resolve_generate_and_write_requirements(
+            diff = output.resolve_generate_and_write_requirements(
                 loaded_scopes=loaded_scopes,
                 requirements_mapper=requirements_mapper,
                 dry_run=dry_run,
             )
+            if diff:
+                changed = True
 
         return changed
 
