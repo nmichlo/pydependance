@@ -904,7 +904,7 @@ def test_requirement_mapping():
     assert mapped == "INVALID"
     with pytest.raises(
         NoConfiguredRequirementMappingError,
-        match="could not find a mapped requirement for import: 'INVALID.IMPORT'",
+        match="could not find import to requirement mappings: 'INVALID.IMPORT'",
     ):
         mapper.map_import_to_requirement("INVALID.IMPORT", strict=True)
 
