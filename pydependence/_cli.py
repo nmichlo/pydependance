@@ -698,25 +698,35 @@ class PydependenceCfg(pydantic.BaseModel, extra="forbid"):
             )
         return cfg
 
-    def apply_defaults(self, *, pyproject_path: Path):
+    def apply_defaults(self, *, config_path: "Union[str, Path]"):
+        """
+        config_path is the path to the pyproject.toml file or the toml file that was
+        used to load the configuration. This is used to determine the default root path,
+        which is the folder containing the config. The default root is then used to
+        resolve all relative paths in the configuration.
+        """
+        config_path = Path(config_path)
+
         # helper
         self.default_root = apply_root_to_path_str(
-            pyproject_path.parent, self.default_root
+            config_path.parent, self.default_root
         )
-        s = lambda x: apply_root_to_path_str(self.default_root, x)
+
+        def _resolve_path(x: "Union[str, Path]") -> str:
+            return apply_root_to_path_str(self.default_root, x)
 
         # apply to all paths
         for scope in self.scopes:
-            scope.search_paths = [s(x) for x in scope.search_paths]
-            scope.pkg_paths = [s(x) for x in scope.pkg_paths]
+            scope.search_paths = [_resolve_path(x) for x in scope.search_paths]
+            scope.pkg_paths = [_resolve_path(x) for x in scope.pkg_paths]
         for output in self.resolvers:
             if output.output_file is not None:
-                output.output_file = s(output.output_file)
+                output.output_file = _resolve_path(output.output_file)
             if output.output_file is None:
                 if isinstance(
                     output, (_OutputPyprojectDeps, _OutputPyprojectOptionalDeps)
                 ):
-                    output.output_file = s(pyproject_path)
+                    output.output_file = _resolve_path(config_path)
             # check kinds
             if isinstance(output, (_OutputPyprojectDeps, _OutputPyprojectOptionalDeps)):
                 if Path(output.output_file).name != "pyproject.toml":
@@ -821,7 +831,7 @@ class PydependenceCfg(pydantic.BaseModel, extra="forbid"):
         pyproject = _PyprojectToml.model_validate(toml.unwrap())
         pydependence = pyproject.tool.pydependence
         # 3. override paths in cfg using the default root
-        pydependence.apply_defaults(pyproject_path=path)
+        pydependence.apply_defaults(config_path=path)
         return pydependence
 
     @classmethod
@@ -832,7 +842,7 @@ class PydependenceCfg(pydantic.BaseModel, extra="forbid"):
         tool = _PyprojectTomlTools.model_validate(toml.unwrap())
         pydependence = tool.pydependence
         # 3. override paths in cfg using the default root
-        pydependence.apply_defaults(pyproject_path=path)
+        pydependence.apply_defaults(config_path=path)
         return pydependence
 
     @classmethod
