@@ -157,7 +157,7 @@ class OutMappedRequirements:
     ) -> str:
         lines = []
         if notice:
-            lines.append(self.autogen_notice)
+            lines.append(f'# {self.autogen_notice}')
         for req in self.requirements:
             # add requirement
             lines.append(f"{req.requirement}")
