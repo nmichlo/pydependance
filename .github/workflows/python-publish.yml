@@ -7,7 +7,7 @@
 name: publish
 
 on:
-  push:
+  tags: ['*']
   release:
     types: [created]
 
