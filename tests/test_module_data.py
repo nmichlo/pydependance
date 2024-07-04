@@ -1109,7 +1109,7 @@ def test_requirements_txt_gen(mapper: RequirementsMapper):
         sources_roots=True,
         indent_size=4,
     ) == (
-        "[AUTOGEN] by pydependence **DO NOT EDIT** [AUTOGEN]\n"
+        "# [AUTOGEN] by pydependence **DO NOT EDIT** [AUTOGEN]\n"
         "extern_D\n"
         "foo\n"
         "glob_extern\n"

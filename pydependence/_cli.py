@@ -22,7 +22,10 @@
 # SOFTWARE.                                                                      #
 # ============================================================================== #
 
+import contextlib
 import logging
+import shutil
+import tempfile
 import warnings
 from collections import defaultdict
 from enum import Enum
@@ -158,6 +161,93 @@ class _ResolveRules(pydantic.BaseModel, extra="forbid"):
 
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
+# CONFIG - OUTPUT HELPER                                                    #
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
+
+
+def check_files_differ(
+    src: "Union[str, Path]",
+    dst: "Union[str, Path]",
+) -> bool:
+    src = Path(src)
+    dst = Path(dst)
+    # if src and dst do not exist, then they are the same
+    src_exists = src.exists()
+    dst_exists = dst.exists()
+    if not src_exists and not dst_exists:
+        return False
+    # if only one exists, then they are different
+    if src_exists != dst_exists:
+        return True
+    # if both exist, then check if they are the same
+    return src.read_text() != dst.read_text()
+
+
+@contextlib.contextmanager
+def atomic_gen_file_ctx(
+    file: "Union[str, Path]",
+    dry_run: bool = False,
+    copy_file_to_temp: bool = True,
+):
+    final_path = Path(file)
+    temp_path = None
+    changed = None
+    del file
+
+    class GenResults:
+        @property
+        def changed(self) -> bool:
+            if changed is None:
+                raise RuntimeError(
+                    f"[BUG] tempfile has not been generated yet for: {final_path}"
+                )
+            return changed
+
+        @property
+        def final_path(self) -> Path:
+            return final_path
+
+        @property
+        def temp_path(self) -> Path:
+            if changed is not None:
+                raise RuntimeError(
+                    f"[BUG] tempfile has already been generated for: {final_path}"
+                )
+            if temp_path is None:
+                raise RuntimeError(
+                    f"[BUG] tempfile has not been generated yet for: {final_path}"
+                )
+            return temp_path
+
+    # 1. write to temp file next to original, get the file path
+    # 2. check if the file is different
+    # 3. if different, then move to original
+    results = GenResults()
+    with tempfile.TemporaryDirectory(dir=final_path.parent) as temp_dir:
+        temp_path = Path(temp_dir) / f"{final_path.name}.tmp"
+        # - copy
+        if copy_file_to_temp:
+            if final_path.exists():
+                shutil.copy(final_path, temp_path)
+        # - write
+        yield results
+        # - check if different
+        changed = check_files_differ(src=temp_path, dst=final_path)
+        # - move to original
+        if dry_run:
+            if changed:
+                LOGGER.info(f"[GEN] would have changed: {final_path}")
+            else:
+                LOGGER.info(f"[GEN] would remain the same: {final_path}")
+        else:
+            if changed:
+                shutil.move(temp_path, final_path)
+                LOGGER.info(f"[GEN] changed: {final_path}")
+            else:
+                LOGGER.info(f"[GEN] remaining the same: {final_path}")
+
+
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
 # CONFIG - OUTPUT                                                           #
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - #
 
@@ -266,7 +356,20 @@ class _Output(_ResolveRules, extra="forbid"):
         self,
         loaded_scopes: "LoadedScopes",
         requirements_mapper: RequirementsMapper,
-    ) -> None:
+        *,
+        dry_run: bool = False,
+    ) -> bool:
+        """
+        Resolve the imports, generate the requirements, and write the requirements to the output file.
+
+        Args:
+            loaded_scopes (LoadedScopes): The loaded scopes to use for resolving imports.
+            requirements_mapper (RequirementsMapper): The requirements mapper to use for generating requirements.
+            dry_run (bool): If True, then do not write the requirements, only check if they would change.
+
+        Returns:
+            bool: True if the file was changed, False if it was not changed.
+        """
         # 1. resolve imports
         resolved_imports = self.get_resolved_imports(loaded_scopes=loaded_scopes)
         manual_imports = self.get_manual_imports()
@@ -283,11 +386,25 @@ class _Output(_ResolveRules, extra="forbid"):
             msg = f"[requirement-mapping-error] output: {self.get_output_extras_name()}{msg}"
             raise NoConfiguredRequirementMappingError(msg, e.imports) from e
         # 3. write requirements
-        self._write_requirements(
+        changed = self._write_requirements(
             mapped_requirements=mapped_requirements,
+            dry_run=dry_run,
         )
+        return changed
 
-    def _write_requirements(self, mapped_requirements: OutMappedRequirements) -> None:
+    def _write_requirements(
+        self, mapped_requirements: OutMappedRequirements, *, dry_run: bool
+    ) -> bool:
+        """
+        Write the requirements to the output file.
+
+        Args:
+            mapped_requirements (OutMappedRequirements): The mapped requirements to write.
+            dry_run (bool): If True, then do not write the requirements, only check if they would change.
+
+        Returns:
+            bool: True if the file was changed, False if it was not changed.
+        """
         raise NotImplementedError(
             f"tried to write imports for {repr(self.get_output_extras_name())}, write_imports not implemented for {self.__class__.__name__}"
         )
@@ -296,7 +413,12 @@ class _Output(_ResolveRules, extra="forbid"):
 class _OutputRequirements(_Output):
     output_mode: Literal[OutputModeEnum.requirements]
 
-    def _write_requirements(self, mapped_requirements: OutMappedRequirements):
+    def _write_requirements(
+        self,
+        mapped_requirements: OutMappedRequirements,
+        *,
+        dry_run: bool,
+    ):
         string = mapped_requirements.as_requirements_txt(
             notice=True,
             sources=True,
@@ -305,17 +427,23 @@ class _OutputRequirements(_Output):
             indent_size=4,
         )
         LOGGER.info(f"writing requirements to: {self.output_file}")
-        txt_file_dump(
-            file=self.output_file,
-            contents=string,
-        )
+
+        # create temp dir, generate, and check if changed
+        with atomic_gen_file_ctx(file=self.output_file, dry_run=dry_run) as gen_info:
+            txt_file_dump(
+                file=gen_info.temp_path,
+                contents=string,
+            )
+        return gen_info.changed
 
 
 class _OutputPyprojectOptionalDeps(_Output):
     output_mode: Literal[OutputModeEnum.optional_dependencies]
     output_file: Optional[str] = None
 
-    def _write_requirements(self, mapped_requirements: OutMappedRequirements):
+    def _write_requirements(
+        self, mapped_requirements: OutMappedRequirements, *, dry_run: bool
+    ):
         array = mapped_requirements.as_toml_array(
             notice=True,
             sources=True,
@@ -327,18 +455,23 @@ class _OutputPyprojectOptionalDeps(_Output):
         LOGGER.info(
             f"writing optional dependencies: {repr(out_name)} to: {self.output_file}"
         )
-        toml_file_replace_array(
-            file=self.output_file,
-            keys=["project", "optional-dependencies", out_name],
-            array=array,
-        )
+        # create temp dir, generate, and check if changed
+        with atomic_gen_file_ctx(file=self.output_file, dry_run=dry_run) as gen_info:
+            toml_file_replace_array(
+                file=gen_info.temp_path,
+                keys=["project", "optional-dependencies", out_name],
+                array=array,
+            )
+        return gen_info.changed
 
 
 class _OutputPyprojectDeps(_Output):
     output_mode: Literal[OutputModeEnum.dependencies]
     output_file: Optional[str] = None
 
-    def _write_requirements(self, mapped_requirements: OutMappedRequirements):
+    def _write_requirements(
+        self, mapped_requirements: OutMappedRequirements, *, dry_run: bool
+    ):
         array = mapped_requirements.as_toml_array(
             notice=True,
             sources=True,
@@ -347,11 +480,14 @@ class _OutputPyprojectDeps(_Output):
             indent_size=4,
         )
         LOGGER.info(f"writing dependencies to: {self.output_file}")
-        toml_file_replace_array(
-            file=self.output_file,
-            keys=["project", "dependencies"],
-            array=array,
-        )
+        # create temp dir, generate, and check if changed
+        with atomic_gen_file_ctx(file=self.output_file, dry_run=dry_run) as gen_info:
+            toml_file_replace_array(
+                file=gen_info.temp_path,
+                keys=["project", "dependencies"],
+                array=array,
+            )
+        return gen_info.changed
 
 
 CfgResolver = Annotated[
@@ -409,6 +545,21 @@ def normalize_extras_name(string: str, strict: bool = True):
             )
         else:
             warnings.warn(f"normalized extras name from {repr(string)} to {repr(norm)}")
+    return norm
+
+
+def normalize_import_to_scope_name(string: str, strict: bool = True):
+    """
+    Ensure instead of "." we use "-", and instead of "*" we use "all".
+    """
+    norm = string.replace(".", "-").replace("*", "all")
+    if norm != string:
+        if strict:
+            raise ValueError(
+                f"import name is invalid: {repr(string)}, should be: {repr(norm)}"
+            )
+        else:
+            warnings.warn(f"normalized import name from {repr(string)} to {repr(norm)}")
     return norm
 
 
@@ -543,6 +694,14 @@ class CfgScope(_ScopeRules, extra="forbid"):
     @classmethod
     def _validate_exclude(cls, v):
         return [v] if isinstance(v, str) else v
+
+    @pydantic.field_validator("subscopes", mode="before")
+    @classmethod
+    def _validate_subscopes(cls, v):
+        # convert list to dict & normalize names
+        if isinstance(v, list):
+            return {x: normalize_import_to_scope_name(x, strict=False) for x in v}
+        return v
 
     def make_module_scope(self, loaded_scopes: "LoadedScopes" = None):
         m = ModulesScope()
@@ -788,7 +947,12 @@ class PydependenceCfg(pydantic.BaseModel, extra="forbid"):
             env_matchers=env_matchers,
         )
 
-    def write_all_outputs(self, loaded_scopes: "LoadedScopes"):
+    def write_all_outputs(
+        self,
+        loaded_scopes: "LoadedScopes",
+        *,
+        dry_run: bool = False,
+    ) -> bool:
         # check that scope output names are unique
         # - output names only need to be unique if they are optional-dependencies!
         # - warn if generally not unique, error if optional-deps not unique
@@ -826,11 +990,17 @@ class PydependenceCfg(pydantic.BaseModel, extra="forbid"):
         requirements_mapper = self.make_requirements_mapper(loaded_scopes=loaded_scopes)
 
         # resolve the scopes!
+        changed = False
         for output in self.resolvers:
-            output.resolve_generate_and_write_requirements(
+            diff = output.resolve_generate_and_write_requirements(
                 loaded_scopes=loaded_scopes,
                 requirements_mapper=requirements_mapper,
+                dry_run=dry_run,
             )
+            if diff:
+                changed = True
+
+        return changed
 
     # ... LOADING ...
 
@@ -892,7 +1062,8 @@ class _PyprojectToml(pydantic.BaseModel, extra="ignore"):
 def pydeps(
     *,
     config_path: Union[str, Path],
-):
+    dry_run: bool = False,
+) -> bool:
     # 1. get absolute
     config_path = Path(config_path).resolve().absolute()
     LOGGER.info(f"loading pydependence config from: {config_path}")
@@ -901,7 +1072,11 @@ def pydeps(
     # 3. generate search spaces, recursively resolving!
     loaded_scopes = pydependence.load_scopes()
     # 4. generate outputs
-    pydependence.write_all_outputs(loaded_scopes)
+    has_changes = pydependence.write_all_outputs(
+        loaded_scopes,
+        dry_run=dry_run,
+    )
+    return has_changes
 
 
 # ========================================================================= #
